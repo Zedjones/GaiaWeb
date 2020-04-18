@@ -76,7 +76,7 @@ async fn main() -> std::io::Result<()> {
 
     env_logger::from_env(Env::default().default_filter_or("info")).init();
 
-    std::fs::create_dir("./tmp").unwrap();
+    std::fs::create_dir_all("./tmp").unwrap();
     HttpServer::new(move || {
         App::new()
             .service(other_hello)
