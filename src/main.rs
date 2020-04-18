@@ -1,9 +1,12 @@
 use actix_web::{web, App, HttpServer, Responder, middleware::Logger};
-use actix_web::{HttpRequest, get};
+use actix_web::{HttpRequest, get, post, HttpResponse, Error};
+use actix_multipart::Multipart;
 use serde::Deserialize;
 use env_logger::Env;
 use lapin::{Connection, ConnectionProperties, options::*, types::FieldTable, Channel,
             BasicProperties};
+use std::io::Write;
+use futures::{StreamExt, TryStreamExt};
 
 cfg_if::cfg_if! {
     if #[cfg(debug_assertions)] {
@@ -17,6 +20,27 @@ cfg_if::cfg_if! {
 #[derive(Deserialize)]
 struct Info {
     name: String
+}
+
+#[post("/upload")]
+async fn save_file(mut payload: Multipart) -> Result<HttpResponse, Error> {
+    // iterate over multipart stream
+    while let Ok(Some(mut field)) = payload.try_next().await {
+        let content_type = field.content_disposition().unwrap();
+        let filename = content_type.get_filename().unwrap();
+        let filepath = format!("./tmp/{}", filename);
+        // File::create is blocking operation, use threadpool
+        let mut f = web::block(|| std::fs::File::create(filepath))
+            .await
+            .unwrap();
+        // Field in turn is stream of *Bytes* object
+        while let Some(chunk) = field.next().await {
+            let data = chunk.unwrap();
+            // filesystem operations are blocking, we have to use threadpool
+            f = web::block(move || f.write_all(&data).map(|_| f)).await.unwrap();
+        }
+    }
+    Ok(HttpResponse::Ok().into())
 }
 
 #[get("/hello")]
@@ -49,11 +73,15 @@ async fn main() -> std::io::Result<()> {
             FieldTable::default()
         );
     let send_clone = send_chan.clone();
+
     env_logger::from_env(Env::default().default_filter_or("info")).init();
+
+    std::fs::create_dir("./tmp").unwrap();
     HttpServer::new(move || {
         App::new()
             .service(other_hello)
             .service(hello)
+            .service(save_file)
             .data(send_clone.clone())
             .wrap(Logger::default())
     })
