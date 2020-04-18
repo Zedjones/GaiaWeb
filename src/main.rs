@@ -31,13 +31,12 @@ async fn save_file(mut payload: Multipart) -> Result<HttpResponse, Error> {
         let filepath = format!("./tmp/{}", filename);
         // File::create is blocking operation, use threadpool
         let mut f = web::block(|| std::fs::File::create(filepath))
-            .await
-            .unwrap();
+            .await?;
         // Field in turn is stream of *Bytes* object
         while let Some(chunk) = field.next().await {
             let data = chunk.unwrap();
             // filesystem operations are blocking, we have to use threadpool
-            f = web::block(move || f.write_all(&data).map(|_| f)).await.unwrap();
+            f = web::block(move || f.write_all(&data).map(|_| f)).await?;
         }
     }
     Ok(HttpResponse::Ok().into())
