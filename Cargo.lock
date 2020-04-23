@@ -284,7 +284,6 @@ dependencies = [
  "actix-multipart",
  "actix-rt",
  "actix-web",
- "cfg-if",
  "env_logger",
  "futures",
  "lapin",

@@ -5,18 +5,13 @@ use serde::Deserialize;
 use env_logger::Env;
 use lapin::{Connection, ConnectionProperties, options::*, types::FieldTable, Channel,
             BasicProperties};
-use std::io::Write;
 use futures::{StreamExt, TryStreamExt};
 use actix_web::web::Bytes;
 
-cfg_if::cfg_if! {
-    if #[cfg(debug_assertions)] {
-        const ADDR: &'static str = "127.0.0.1:8000";
-    }
-    else {
-        const ADDR: &'static str = "0.0.0.0:8000";
-    }
-}
+#[cfg(debug_assertions)]
+    const ADDR: &'static str = "127.0.0.1:8000";
+#[cfg(not(debug_assertions))]
+    const ADDR: &'static str = "0.0.0.0:8000";
 
 #[derive(Deserialize)]
 struct Info {
@@ -27,9 +22,6 @@ struct Info {
 async fn save_file(mut payload: Multipart, send_chan: web::Data<Channel>) -> Result<HttpResponse, Error> {
     // iterate over multipart stream
     while let Ok(Some(mut field)) = payload.try_next().await {
-        let content_type = field.content_disposition().unwrap();
-        let filename = content_type.get_filename().unwrap();
-        let filepath = format!("./tmp/{}", filename);
         let mut my_vec: Vec<Bytes> = Vec::new();
         // Field in turn is stream of *Bytes* object
         while let Some(chunk) = field.next().await {
