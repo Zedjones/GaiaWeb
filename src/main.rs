@@ -7,6 +7,7 @@ use lapin::{Connection, ConnectionProperties, options::*, types::FieldTable, Cha
             BasicProperties};
 use std::io::Write;
 use futures::{StreamExt, TryStreamExt};
+use actix_web::web::Bytes;
 
 cfg_if::cfg_if! {
     if #[cfg(debug_assertions)] {
@@ -23,21 +24,27 @@ struct Info {
 }
 
 #[post("/upload")]
-async fn save_file(mut payload: Multipart) -> Result<HttpResponse, Error> {
+async fn save_file(mut payload: Multipart, send_chan: web::Data<Channel>) -> Result<HttpResponse, Error> {
     // iterate over multipart stream
     while let Ok(Some(mut field)) = payload.try_next().await {
         let content_type = field.content_disposition().unwrap();
         let filename = content_type.get_filename().unwrap();
         let filepath = format!("./tmp/{}", filename);
-        // File::create is blocking operation, use threadpool
-        let mut f = web::block(|| std::fs::File::create(filepath))
-            .await?;
+        let mut my_vec: Vec<Bytes> = Vec::new();
         // Field in turn is stream of *Bytes* object
         while let Some(chunk) = field.next().await {
             let data = chunk.unwrap();
+            my_vec.push(data);
             // filesystem operations are blocking, we have to use threadpool
-            f = web::block(move || f.write_all(&data).map(|_| f)).await?;
         }
+        let all_bytes = my_vec.concat();
+        send_chan.basic_publish(
+            "",
+            "pokemon",
+            BasicPublishOptions::default(),
+            all_bytes,
+            BasicProperties::default()
+        ).await.unwrap();
     }
     Ok(HttpResponse::Ok().into())
 }
