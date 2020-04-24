@@ -27,12 +27,11 @@ async fn save_file(mut payload: Multipart, send_chan: web::Data<Channel>) -> Res
         while let Some(chunk) = field.next().await {
             let data = chunk.unwrap();
             my_vec.push(data);
-            // filesystem operations are blocking, we have to use threadpool
         }
         let all_bytes = my_vec.concat();
         send_chan.basic_publish(
             "",
-            "pokemon",
+            "jobs_input",
             BasicPublishOptions::default(),
             all_bytes,
             BasicProperties::default()
@@ -51,7 +50,7 @@ async fn hello(req: HttpRequest, send_chan: web::Data<Channel>) -> impl Responde
     let name = req.match_info().get("name").unwrap();
     send_chan.basic_publish(
         "",
-        "pokemon",
+        "jobs_input",
         BasicPublishOptions::default(),
         name.as_bytes().to_vec(),
         BasicProperties::default()
@@ -66,7 +65,7 @@ async fn main() -> std::io::Result<()> {
     let send_chan = conn.create_channel().await.unwrap();
     let _queue = send_chan
         .queue_declare(
-            "pokemon",
+            "jobs_input",
             QueueDeclareOptions::default(),
             FieldTable::default()
         );
