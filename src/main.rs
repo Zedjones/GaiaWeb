@@ -2,6 +2,7 @@ use actix_web::{web, App, HttpServer, Responder, middleware::Logger};
 use actix_web::{HttpRequest, get, post, HttpResponse, Error};
 use actix_multipart::Multipart;
 use serde::Deserialize;
+use log::info;
 use env_logger::Env;
 use lapin::{Connection, ConnectionProperties, options::*, types::FieldTable, Channel,
             BasicProperties, CloseOnDrop};
@@ -65,6 +66,8 @@ async fn connect_timeout() -> Option<CloseOnDrop<Connection>> {
     let addr = std::env::var("RABBITMQ_ADDR").unwrap_or("127.0.0.1".to_string());
     let uri = format!("amqp://{}:5672/%2f", addr);
     let start = std::time::Instant::now();
+    info!("Attempting to connect to RabbitMQ at address {}", uri);
+    info!("Timeout is: {} seconds", CONN_TIMEOUT.as_secs());
     loop {
         if let Ok(conn) = Connection::connect(&uri, ConnectionProperties::default()).await {
             break Some(conn)
@@ -78,6 +81,8 @@ async fn connect_timeout() -> Option<CloseOnDrop<Connection>> {
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
+    env_logger::from_env(Env::default().default_filter_or("info")).init();
+
     let conn = connect_timeout().await.unwrap();
     let send_chan = conn.create_channel().await.unwrap();
     let _queue = send_chan
@@ -87,8 +92,6 @@ async fn main() -> std::io::Result<()> {
             FieldTable::default()
         );
     let send_clone = send_chan.clone();
-
-    env_logger::from_env(Env::default().default_filter_or("info")).init();
 
     std::fs::create_dir_all("./tmp").unwrap();
     HttpServer::new(move || {
