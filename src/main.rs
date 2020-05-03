@@ -4,14 +4,17 @@ use actix_multipart::Multipart;
 use serde::Deserialize;
 use env_logger::Env;
 use lapin::{Connection, ConnectionProperties, options::*, types::FieldTable, Channel,
-            BasicProperties};
+            BasicProperties, CloseOnDrop};
 use futures::{StreamExt, TryStreamExt};
 use actix_web::web::Bytes;
+use std::time::Duration;
 
 #[cfg(debug_assertions)]
     const ADDR: &'static str = "127.0.0.1:8000";
 #[cfg(not(debug_assertions))]
     const ADDR: &'static str = "0.0.0.0:8000";
+
+const CONN_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Deserialize)]
 struct Info {
@@ -58,10 +61,24 @@ async fn hello(req: HttpRequest, send_chan: web::Data<Channel>) -> impl Responde
     format!("Hello {}!", name)
 }
 
+async fn connect_timeout() -> Option<CloseOnDrop<Connection>> {
+    let addr = std::env::var("RABBITMQ_ADDR").unwrap_or("127.0.0.1".to_string());
+    let uri = format!("amqp://{}:5672/%2f", addr);
+    let start = std::time::Instant::now();
+    loop {
+        if let Ok(conn) = Connection::connect(&uri, ConnectionProperties::default()).await {
+            break Some(conn)
+        }
+        else if start.elapsed() > CONN_TIMEOUT {
+            break None
+        }
+        std::thread::sleep(Duration::from_secs(1));
+    }
+}
+
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
-    let addr = "amqp://127.0.0.1:5672/%2f";
-    let conn = Connection::connect(addr, ConnectionProperties::default()).await.unwrap();
+    let conn = connect_timeout().await.unwrap();
     let send_chan = conn.create_channel().await.unwrap();
     let _queue = send_chan
         .queue_declare(
