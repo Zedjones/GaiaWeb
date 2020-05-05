@@ -1,5 +1,5 @@
 [package]
-name = "actix_test"
+name = "gaia_web"
 version = "0.1.0"
 authors = ["Zedjones <dojoman19@gmail.com>"]
 edition = "2018"
@@ -15,3 +15,5 @@ log = "0.4.8"
 env_logger = "0.7.1"
 lapin = "0.39.7"
 futures = "0.3.4"
+diesel = "1.4.4"
+diesel_migrations = "1.4.0"

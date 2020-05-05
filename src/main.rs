@@ -1,14 +1,12 @@
-use actix_web::{web, App, HttpServer, Responder, middleware::Logger};
-use actix_web::{HttpRequest, get, post, HttpResponse, Error};
-use actix_multipart::Multipart;
-use serde::Deserialize;
-use log::info;
+mod routes;
+
+use actix_web::{App, HttpServer, middleware::Logger};
+use log::{info, error};
 use env_logger::Env;
-use lapin::{Connection, ConnectionProperties, options::*, types::FieldTable, Channel,
-            BasicProperties, CloseOnDrop};
-use futures::{StreamExt, TryStreamExt};
-use actix_web::web::Bytes;
+use lapin::{Connection, ConnectionProperties, options::*, types::FieldTable, CloseOnDrop};
 use std::time::Duration;
+
+use routes::{other_hello, hello, save_file};
 
 #[cfg(debug_assertions)]
     const ADDR: &'static str = "127.0.0.1:8000";
@@ -16,51 +14,6 @@ use std::time::Duration;
     const ADDR: &'static str = "0.0.0.0:8000";
 
 const CONN_TIMEOUT: Duration = Duration::from_secs(10);
-
-#[derive(Deserialize)]
-struct Info {
-    name: String
-}
-
-#[post("/upload")]
-async fn save_file(mut payload: Multipart, send_chan: web::Data<Channel>) -> Result<HttpResponse, Error> {
-    // iterate over multipart stream
-    while let Ok(Some(mut field)) = payload.try_next().await {
-        let mut my_vec: Vec<Bytes> = Vec::new();
-        // Field in turn is stream of *Bytes* object
-        while let Some(chunk) = field.next().await {
-            let data = chunk.unwrap();
-            my_vec.push(data);
-        }
-        let all_bytes = my_vec.concat();
-        send_chan.basic_publish(
-            "",
-            "jobs_input",
-            BasicPublishOptions::default(),
-            all_bytes,
-            BasicProperties::default()
-        ).await.unwrap();
-    }
-    Ok(HttpResponse::Ok().into())
-}
-
-#[get("/hello")]
-async fn other_hello(name: web::Query<Info>) -> impl Responder {
-    format!("Hello {}!", name.name)
-}
-
-#[get("/{name}{tail:.*}")]
-async fn hello(req: HttpRequest, send_chan: web::Data<Channel>) -> impl Responder {
-    let name = req.match_info().get("name").unwrap();
-    send_chan.basic_publish(
-        "",
-        "jobs_input",
-        BasicPublishOptions::default(),
-        name.as_bytes().to_vec(),
-        BasicProperties::default()
-    ).await.unwrap();
-    format!("Hello {}!", name)
-}
 
 async fn connect_timeout() -> Option<CloseOnDrop<Connection>> {
     let addr = std::env::var("RABBITMQ_ADDR").unwrap_or("127.0.0.1".to_string());
@@ -70,6 +23,7 @@ async fn connect_timeout() -> Option<CloseOnDrop<Connection>> {
     info!("Timeout is: {} seconds", CONN_TIMEOUT.as_secs());
     loop {
         if let Ok(conn) = Connection::connect(&uri, ConnectionProperties::default()).await {
+            info!("Successfully connected to RabbitMQ server");
             break Some(conn)
         }
         else if start.elapsed() > CONN_TIMEOUT {
@@ -81,9 +35,16 @@ async fn connect_timeout() -> Option<CloseOnDrop<Connection>> {
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::from_env(Env::default().default_filter_or("info")).init();
+    env_logger::from_env(Env::default().default_filter_or("gaia=info,actix=info")).init();
 
-    let conn = connect_timeout().await.unwrap();
+    let conn = match connect_timeout().await {
+        Some(conn) => conn,
+        None => {
+            error!("Could not connect to RabbitMQ server");
+            info!("Exiting...");
+            std::process::exit(1);
+        }
+    };
     let send_chan = conn.create_channel().await.unwrap();
     let _queue = send_chan
         .queue_declare(
