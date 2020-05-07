@@ -11,11 +11,26 @@ struct Info {
     name: String
 }
 
+fn default_db_scan() -> bool {
+    false
+}
+
+fn default_epsilon() -> i32 {
+    5
+}
+
+fn default_cluster_size() -> i32 {
+    200
+}
+
 #[derive(Serialize, Deserialize)]
 struct Settings {
     data_id: Option<i32>,
+    #[serde(default = "default_db_scan")]
     db_scan: bool,
+    #[serde(default = "default_epsilon")]
     epsilon: i32,
+    #[serde(default = "default_cluster_size")]
     cluster_size: i32
 }
 
