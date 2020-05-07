@@ -48,7 +48,7 @@ async fn main() -> std::io::Result<()> {
     let send_chan = conn.create_channel().await.unwrap();
     let _queue = send_chan
         .queue_declare(
-            "jobs_input",
+            "gaia_input",
             QueueDeclareOptions::default(),
             FieldTable::default()
         );
