@@ -13,7 +13,9 @@ CREATE TABLE computations (
 
 CREATE TABLE clusters
 (
-	computation_id INTEGER NOT NULL,
+	computation_id INTEGER NOT NULL
+		CONSTRAINT clusters_computations_id_fk
+			REFERENCES computations(id),
 	cluster_number INTEGER NOT NULL,
 	stars_number INTEGER NOT NULL,
 	CONSTRAINT clusters_pk
