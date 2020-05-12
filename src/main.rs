@@ -36,7 +36,7 @@ async fn connect_timeout() -> Option<CloseOnDrop<Connection>> {
     }
 }
 
-fn established_db_connection() -> SqliteConnection {
+fn establish_db_connection() -> SqliteConnection {
     let db_url = std::env::var("DATABASE_URL").unwrap_or("gaia.db".to_string());
     SqliteConnection::establish(&db_url).unwrap_or_else(|_| {
         error!("Could not connect to DB at {}", db_url);
@@ -65,7 +65,7 @@ async fn main() -> std::io::Result<()> {
         );
     let send_clone = send_chan.clone();
 
-    let db_conn = established_db_connection();
+    let db_conn = establish_db_connection();
     diesel_migrations::run_pending_migrations(&db_conn).unwrap();
 
     HttpServer::new(move || {
