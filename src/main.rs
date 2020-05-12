@@ -6,6 +6,9 @@ use env_logger::Env;
 use lapin::{Connection, ConnectionProperties, options::*, types::FieldTable, CloseOnDrop};
 use std::time::Duration;
 
+use diesel::prelude::*;
+use diesel::connection::Connection as _;
+
 use routes::{other_hello, hello, save_file};
 
 #[cfg(debug_assertions)]
@@ -33,11 +36,19 @@ async fn connect_timeout() -> Option<CloseOnDrop<Connection>> {
     }
 }
 
+fn established_db_connection() -> SqliteConnection {
+    let db_url = std::env::var("DATABASE_URL").unwrap_or("gaia.db".to_string());
+    SqliteConnection::establish(&db_url).unwrap_or_else(|_| {
+        error!("Could not connect to DB at {}", db_url);
+        std::process::exit(1);
+    })
+}
+
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
     env_logger::from_env(Env::default().default_filter_or("gaia=info,actix=info")).init();
 
-    let conn = match connect_timeout().await {
+    let rabbit_conn = match connect_timeout().await {
         Some(conn) => conn,
         None => {
             error!("Could not connect to RabbitMQ server");
@@ -45,7 +56,7 @@ async fn main() -> std::io::Result<()> {
             std::process::exit(1);
         }
     };
-    let send_chan = conn.create_channel().await.unwrap();
+    let send_chan = rabbit_conn.create_channel().await.unwrap();
     let _queue = send_chan
         .queue_declare(
             "gaia_input",
@@ -54,7 +65,9 @@ async fn main() -> std::io::Result<()> {
         );
     let send_clone = send_chan.clone();
 
-    std::fs::create_dir_all("./tmp").unwrap();
+    let db_conn = established_db_connection();
+    diesel_migrations::run_pending_migrations(&db_conn).unwrap();
+
     HttpServer::new(move || {
         App::new()
             .service(other_hello)
