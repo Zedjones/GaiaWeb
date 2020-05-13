@@ -1,4 +1,10 @@
 mod routes;
+mod models;
+mod schema;
+
+// Still need this because Diesel is a bit outdated until 2.0
+#[macro_use]
+extern crate diesel;
 
 use actix_web::{App, HttpServer, middleware::Logger};
 use log::{info, error};
