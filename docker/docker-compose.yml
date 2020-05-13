@@ -6,7 +6,9 @@ services:
             - 15672:15672
             - 5672:5672
     gaia:
-        build: .
+        build:
+            context: ..
+            dockerfile: docker/Dockerfile
         environment: 
             RABBITMQ_ADDR: rabbitmq
         ports: 
