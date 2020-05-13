@@ -15,7 +15,7 @@ use std::time::Duration;
 use diesel::prelude::*;
 use diesel::connection::Connection as _;
 
-use routes::{other_hello, hello, save_file};
+use routes::{save_file};
 
 #[cfg(debug_assertions)]
     const ADDR: &'static str = "127.0.0.1:8000";
@@ -76,8 +76,6 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
-            .service(other_hello)
-            .service(hello)
             .service(save_file)
             .data(send_clone.clone())
             .wrap(Logger::default())

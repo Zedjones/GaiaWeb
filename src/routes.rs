@@ -1,15 +1,10 @@
 
 use actix_multipart::Multipart;
-use actix_web::{web, post, Responder, get, HttpRequest, HttpResponse, Error};
+use actix_web::{web, post, HttpResponse, Error};
 use lapin::{BasicProperties, Channel, options::*};
 use futures::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use web::{Bytes, Query, Data};
-
-#[derive(Deserialize)]
-struct Info {
-    name: String
-}
 
 fn default_db_scan() -> bool {
     false
@@ -58,22 +53,4 @@ async fn save_file(mut payload: Multipart, mut settings: Query<Settings>,
         ).await.unwrap();
     }
     Ok(HttpResponse::Ok().into())
-}
-
-#[get("/hello")]
-async fn other_hello(name: Query<Info>) -> impl Responder {
-    format!("Hello {}!", name.name)
-}
-
-#[get("/{name}{tail:.*}")]
-async fn hello(req: HttpRequest, send_chan: web::Data<Channel>) -> impl Responder {
-    let name = req.match_info().get("name").unwrap();
-    send_chan.basic_publish(
-        "",
-        "gaia_input",
-        BasicPublishOptions::default(),
-        name.as_bytes().to_vec(),
-        BasicProperties::default()
-    ).await.unwrap();
-    format!("Hello {}!", name)
 }
