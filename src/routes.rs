@@ -23,6 +23,7 @@ fn default_cluster_size() -> i32 {
 struct Settings {
     data_id: Option<Vec<u8>>,
     filename: Option<String>,
+    email: String,
     #[serde(default = "default_db_scan")]
     db_scan: bool,
     #[serde(default = "default_epsilon")]
