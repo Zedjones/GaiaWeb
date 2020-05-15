@@ -1,6 +1,8 @@
 use super::schema::computations;
 use super::DbPool;
+
 use diesel::{QueryDsl, ExpressionMethods, RunQueryDsl};
+use serde::Serialize;
 
 #[derive(Queryable)]
 pub struct Cluster {
@@ -9,10 +11,11 @@ pub struct Cluster {
     pub stars_number: i32
 }
 
-#[derive(Queryable)]
+#[derive(Queryable, Debug, Serialize)]
 pub struct Computation {
     pub id: i32,
     pub email: String,
+    #[serde(skip_serializing)]
     pub csv_file: Vec<u8>,
     pub hr_png: Option<Vec<u8>>,
     pub trimmed_png: Option<Vec<u8>>,

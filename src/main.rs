@@ -15,7 +15,7 @@ use std::time::Duration;
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager};
 
-use routes::save_file;
+use routes::{create_computation, get_computations};
 
 type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 
@@ -78,7 +78,8 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
-            .service(save_file)
+            .service(create_computation)
+            .service(get_computations)
             .data(send_clone.clone())
             .data(pool.clone())
             .wrap(Logger::default())

@@ -48,18 +48,6 @@ class Cluster(Base):
     cluster_number = Column(Integer, primary_key=True)
     stars_number = Column(Integer)
 
-@dataclass
-class GaiaData:
-    hr_png: bytearray
-    trimmed_png: bytearray
-    distance_png: bytearray
-    pm_png: Optional[bytearray]
-    correctly_clustered: Optional[int]
-    incorrectly_clustered: Optional[int]
-    accuracy: Optional[float]
-    anomaly: Optional[int]
-    actual_cluster_sizes: Optional[List[int]]
-
 def run_gaia(comp_id, db_scan, epsilon, cluster_size, filename):
     session = Session()
     this_comp: Computation = session.query(Computation).filter_by(id=comp_id).first()
@@ -115,8 +103,6 @@ def run_gaia(comp_id, db_scan, epsilon, cluster_size, filename):
     pm_bytes.close()
 
     session.commit()
-
-    return None
 
 def callback(ch, method, properties, body):
     request_info = json.loads(body)

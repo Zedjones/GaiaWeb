@@ -1,14 +1,14 @@
 
 use actix_multipart::Multipart;
-use actix_web::{web, post, HttpResponse, Error};
+use actix_web::{web, put, get, HttpResponse, Error, Responder};
 use lapin::{BasicProperties, Channel, options::*};
 use futures::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use web::{Bytes, Query, Data};
 use log::info;
+use diesel::prelude::*;
 
 use super::DbPool;
-use super::models::NewComputation;
 
 fn default_db_scan() -> bool {
     false
@@ -23,7 +23,7 @@ fn default_cluster_size() -> i32 {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Settings {
+struct PutSettings {
     data_id: Option<i32>,
     filename: Option<String>,
     email: String,
@@ -35,9 +35,21 @@ struct Settings {
     cluster_size: i32
 }
 
-#[post("/upload")]
-async fn save_file(mut payload: Multipart, mut settings: Query<Settings>, 
-                   send_chan: Data<Channel>, db_pool: Data<DbPool>) -> Result<HttpResponse, Error> {
+#[derive(Deserialize)]
+struct GetSettings {
+    email: String
+}
+
+#[derive(Serialize, Debug)]
+struct UserComputation {
+    computation: Vec<super::models::Computation>,
+    clusters: Vec<i32>
+}
+
+#[put("/computation")]
+async fn create_computation(mut payload: Multipart, mut settings: Query<PutSettings>, 
+                            send_chan: Data<Channel>, db_pool: Data<DbPool>) -> Result<HttpResponse, Error> {
+    use super::models::NewComputation;
     // iterate over multipart stream
     while let Ok(Some(mut field)) = payload.try_next().await {
         let mut my_vec: Vec<Bytes> = Vec::new();
@@ -55,7 +67,6 @@ async fn save_file(mut payload: Multipart, mut settings: Query<Settings>,
         };
         let comp = new_comp.insert_computation(&db_pool);
         info!("Created computation with id: {}", comp.id);
-        // Random placeholder until we implement db
         settings.0.data_id = Some(comp.id);
         settings.0.filename = Some(filename);
         send_chan.basic_publish(
@@ -67,4 +78,18 @@ async fn save_file(mut payload: Multipart, mut settings: Query<Settings>,
         ).await.unwrap();
     }
     Ok(HttpResponse::Ok().into())
+}
+
+#[get("/computation")]
+async fn get_computations(settings: Query<GetSettings>, db_pool: Data<DbPool>) -> impl Responder {
+    use super::schema::computations::dsl::*;
+
+    let db = db_pool.get().unwrap();
+
+    let _user_computations = computations
+        .filter(email.eq(&settings.0.email))
+        .load::<super::models::Computation>(&db)
+        .expect(&format!("Error loading computations for user {}", &settings.0.email));
+
+    HttpResponse::Ok().json(_user_computations)
 }
