@@ -24,7 +24,7 @@ fn default_cluster_size() -> i32 {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Settings {
-    data_id: Option<Vec<u8>>,
+    data_id: Option<i32>,
     filename: Option<String>,
     email: String,
     #[serde(default = "default_db_scan")]
@@ -56,6 +56,7 @@ async fn save_file(mut payload: Multipart, mut settings: Query<Settings>,
         let comp = new_comp.insert_computation(&db_pool);
         info!("Created computation with id: {}", comp.id);
         // Random placeholder until we implement db
+        settings.0.data_id = Some(comp.id);
         settings.0.filename = Some(filename);
         send_chan.basic_publish(
             "",

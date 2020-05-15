@@ -9,10 +9,39 @@ import array
 from dataclasses import dataclass
 from typing import Optional, List
 
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Integer, BLOB, Text, Float, Column, create_engine
+from sqlalchemy.orm import sessionmaker
+
+Base = declarative_base()
+Session = None
+
 from Gaia.generalized_tool.GaiaDMML import *
 
 RABBITMQ_ADDR = os.environ.get("RABBITMQ_ADDR") or "localhost"
 CONNECTION_TIMEOUT = 10
+
+_db_path = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "gaia.db"))
+DB_ADDR = os.environ.get("DATABASE_ADDR") or f"sqlite:////{_db_path}"
+engine = create_engine(DB_ADDR)
+Session = sessionmaker(bind=engine)
+
+
+
+class Computation(Base):
+    __tablename__ = 'computations'
+
+    id = Column(Integer, primary_key=True)
+    email = Column(Text)
+    csv_file = Column(BLOB)
+    hr_png = Column(BLOB)
+    trimmed_png = Column(BLOB)
+    distance_png = Column(BLOB)
+    pm_png = Column(BLOB)
+    correctly_clustered = Column(Integer)
+    incorrectly_clustered = Column(Integer)
+    accuracy = Column(Float)
+    anomaly = Column(Integer)
 
 @dataclass
 class GaiaData:
@@ -26,19 +55,23 @@ class GaiaData:
     anomaly: Optional[int]
     actual_cluster_sizes: Optional[List[int]]
 
-def run_gaia(csv, db_scan, epsilon, cluster_size, filename):
-    csv_file = io.BytesIO(csv)
-    df = create_df(csv_file)
+def run_gaia(comp_id, db_scan, epsilon, cluster_size, filename):
+    this_comp = Session().query(Computation).filter_by(id=comp_id).first()
+
+    csv_file = io.BytesIO(this_comp.csv_file)
     distance_bytes = io.BytesIO()
-    distance_plot(df, csv_file, filename, distance_bytes)
     hr_bytes = io.BytesIO()
+    trimmed_bytes = io.BytesIO()
+    pm_bytes = io.BytesIO()
+
+    df = create_df(csv_file)
+    distance_plot(df, csv_file, filename, distance_bytes)
     hr_plots(df, csv_file, filename, hr_bytes)
     trimmed_df = trim_data(df)
-    trimmed_bytes = io.BytesIO()
     trimmed_hr(trimmed_df, csv_file, filename, trimmed_bytes)
-    pm_bytes, correctly_clustered, incorrectly_clustered, accuracy = (None, None, None, None)
+
+    correctly_clustered, incorrectly_clustered, accuracy = (None, None, None)
     anomaly, actual_cluster_sizes = (None, None)
-    pm_bytes = io.BytesIO()
     if db_scan:
         # do DBScan stuff
         pm_plots(df, trimmed_df, csv_file, cluster_size, filename, pm_bytes)
@@ -58,13 +91,12 @@ def run_gaia(csv, db_scan, epsilon, cluster_size, filename):
 
 def callback(ch, method, properties, body):
     request_info = json.loads(body)
-    csv_data = array.array('B', request_info["data_id"]).tobytes()
     db_scan = request_info["db_scan"]
     epsilon = request_info["epsilon"]
     print(db_scan)
     cluster_size = request_info["cluster_size"]
     filename = request_info["filename"]
-    gaia_data = run_gaia(csv_data, db_scan, epsilon, cluster_size, filename)
+    gaia_data = run_gaia(request_info["data_id"], db_scan, epsilon, cluster_size, filename)
     ch.basic_ack(method.delivery_tag)
     print("Done")
 
