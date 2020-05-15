@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Optional, List
 
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Integer, BLOB, Text, Float, Column, create_engine
+from sqlalchemy import Integer, BLOB, Text, Float, Column, create_engine, update
 from sqlalchemy.orm import sessionmaker
 
 Base = declarative_base()
@@ -25,8 +25,6 @@ _db_path = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file_
 DB_ADDR = os.environ.get("DATABASE_ADDR") or f"sqlite:////{_db_path}"
 engine = create_engine(DB_ADDR)
 Session = sessionmaker(bind=engine)
-
-
 
 class Computation(Base):
     __tablename__ = 'computations'
@@ -43,6 +41,13 @@ class Computation(Base):
     accuracy = Column(Float)
     anomaly = Column(Integer)
 
+class Cluster(Base):
+    __tablename__ = 'clusters'
+
+    computation_id = Column(Integer, primary_key=True)
+    cluster_number = Column(Integer, primary_key=True)
+    stars_number = Column(Integer)
+
 @dataclass
 class GaiaData:
     hr_png: bytearray
@@ -56,7 +61,8 @@ class GaiaData:
     actual_cluster_sizes: Optional[List[int]]
 
 def run_gaia(comp_id, db_scan, epsilon, cluster_size, filename):
-    this_comp = Session().query(Computation).filter_by(id=comp_id).first()
+    session = Session()
+    this_comp: Computation = session.query(Computation).filter_by(id=comp_id).first()
 
     csv_file = io.BytesIO(this_comp.csv_file)
     distance_bytes = io.BytesIO()
@@ -81,13 +87,24 @@ def run_gaia(comp_id, db_scan, epsilon, cluster_size, filename):
         actual_cluster_sizes = amount(labels, n_clusters, n_noise)
         if n_clusters > 0:
             correctly_clustered, incorrectly_clustered, accuracy = compare_hr(trimmed_df, df_all, df_all_temp)
-    gaia_obj = GaiaData(hr_bytes.getvalue(), trimmed_bytes.getvalue(), distance_bytes.getvalue(), pm_bytes.getvalue(), 
-                        correctly_clustered, incorrectly_clustered, accuracy, anomaly, actual_cluster_sizes)
+
+    this_comp.accuracy = accuracy
+    this_comp.anomaly = anomaly
+    this_comp.correctly_clustered = correctly_clustered
+    this_comp.incorrectly_clustered = incorrectly_clustered
+    this_comp.hr_png = hr_bytes.getvalue()
+    this_comp.distance_png = distance_bytes.getvalue()
+    this_comp.trimmed_png = trimmed_bytes.getvalue()
+    this_comp.pm_png = pm_bytes.getvalue()
+
     distance_bytes.close()
     hr_bytes.close()
     trimmed_bytes.close()
     pm_bytes.close()
-    return gaia_obj
+
+    session.commit()
+
+    return None
 
 def callback(ch, method, properties, body):
     request_info = json.loads(body)
