@@ -13,9 +13,11 @@ use lapin::{Connection, ConnectionProperties, options::*, types::FieldTable, Clo
 use std::time::Duration;
 
 use diesel::prelude::*;
-use diesel::connection::Connection as _;
+use diesel::r2d2::{self, ConnectionManager};
 
-use routes::{save_file};
+use routes::save_file;
+
+type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 
 #[cfg(debug_assertions)]
     const ADDR: &'static str = "127.0.0.1:8000";
@@ -42,14 +44,6 @@ async fn connect_timeout() -> Option<CloseOnDrop<Connection>> {
     }
 }
 
-fn establish_db_connection() -> SqliteConnection {
-    let db_url = std::env::var("DATABASE_URL").unwrap_or("gaia.db".to_string());
-    SqliteConnection::establish(&db_url).unwrap_or_else(|_| {
-        error!("Could not connect to DB at {}", db_url);
-        std::process::exit(1);
-    })
-}
-
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
     env_logger::from_env(Env::default().default_filter_or("gaia=info,actix=info")).init();
@@ -71,13 +65,22 @@ async fn main() -> std::io::Result<()> {
         );
     let send_clone = send_chan.clone();
 
-    let db_conn = establish_db_connection();
-    diesel_migrations::run_pending_migrations(&db_conn).unwrap();
+    let db_url = std::env::var("DATABASE_URL").unwrap_or("gaia.db".to_string());
+    let manager = ConnectionManager::<SqliteConnection>::new(db_url);
+    let pool = r2d2::Pool::builder()
+        .build(manager)
+        .unwrap_or_else(|_| {
+            error!("Could not build DB pool.");
+            std::process::exit(1);
+        });
+
+    diesel_migrations::run_pending_migrations(&pool.get().unwrap()).unwrap();
 
     HttpServer::new(move || {
         App::new()
             .service(save_file)
             .data(send_clone.clone())
+            .data(pool.clone())
             .wrap(Logger::default())
     })
     .bind(ADDR)?

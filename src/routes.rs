@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 use web::{Bytes, Query, Data};
 use log::info;
 
+use super::DbPool;
+use super::models::NewComputation;
+
 fn default_db_scan() -> bool {
     false
 }
@@ -34,7 +37,7 @@ struct Settings {
 
 #[post("/upload")]
 async fn save_file(mut payload: Multipart, mut settings: Query<Settings>, 
-                   send_chan: Data<Channel>) -> Result<HttpResponse, Error> {
+                   send_chan: Data<Channel>, db_pool: Data<DbPool>) -> Result<HttpResponse, Error> {
     // iterate over multipart stream
     while let Ok(Some(mut field)) = payload.try_next().await {
         let mut my_vec: Vec<Bytes> = Vec::new();
@@ -45,11 +48,15 @@ async fn save_file(mut payload: Multipart, mut settings: Query<Settings>,
             my_vec.push(data);
         }
         // Currently not using this until we write to db
-        let _all_bytes = my_vec.concat();
+        let csv_file = my_vec.concat();
+        let new_comp = NewComputation {
+            email: settings.0.email.clone(),
+            csv_file
+        };
+        let comp = new_comp.insert_computation(&db_pool);
+        info!("Created computation with id: {}", comp.id);
         // Random placeholder until we implement db
-        settings.0.data_id = Some(_all_bytes);
         settings.0.filename = Some(filename);
-        info!("{:?}", &settings.0);
         send_chan.basic_publish(
             "",
             "gaia_input",

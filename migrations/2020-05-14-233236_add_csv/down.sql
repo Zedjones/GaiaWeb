@@ -1,3 +1,4 @@
+-- This file should undo anything in `up.sql`
 CREATE TABLE computations_dg_tmp
 (
 	id INTEGER NOT NULL
@@ -16,4 +17,3 @@ CREATE TABLE computations_dg_tmp
 DROP TABLE computations;
 
 ALTER TABLE computations_dg_tmp RENAME TO computations;
-
