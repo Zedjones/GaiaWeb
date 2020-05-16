@@ -19,6 +19,7 @@ table! {
         incorrectly_clustered -> Nullable<Integer>,
         accuracy -> Nullable<Float>,
         anomaly -> Nullable<Integer>,
+        clusters -> Nullable<Text>,
     }
 }
 

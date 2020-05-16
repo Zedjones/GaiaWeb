@@ -40,13 +40,7 @@ class Computation(Base):
     incorrectly_clustered = Column(Integer)
     accuracy = Column(Float)
     anomaly = Column(Integer)
-
-class Cluster(Base):
-    __tablename__ = 'clusters'
-
-    computation_id = Column(Integer, primary_key=True)
-    cluster_number = Column(Integer, primary_key=True)
-    stars_number = Column(Integer)
+    clusters = Column(Text)
 
 def run_gaia(comp_id, db_scan, epsilon, cluster_size, filename):
     session = Session()
@@ -84,18 +78,8 @@ def run_gaia(comp_id, db_scan, epsilon, cluster_size, filename):
     this_comp.distance_png = distance_bytes.getvalue()
     this_comp.trimmed_png = trimmed_bytes.getvalue()
     this_comp.pm_png = pm_bytes.getvalue()
-
-    cluster_sizes = []
-    for i, val in enumerate(actual_cluster_sizes):
-        cluster_sizes.append(
-            Cluster(
-                computation_id = comp_id,
-                cluster_number = i + 1,
-                stars_number = val
-            )
-        )
-
-    session.add_all(cluster_sizes)
+    if len(actual_cluster_sizes) > 0:
+        this_comp.clusters = str(actual_cluster_sizes)
 
     distance_bytes.close()
     hr_bytes.close()

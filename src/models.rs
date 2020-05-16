@@ -2,7 +2,7 @@ use super::schema::computations;
 use super::DbPool;
 
 use diesel::{QueryDsl, ExpressionMethods, RunQueryDsl};
-use serde::Serialize;
+use serde::{Serialize, Serializer, ser::SerializeSeq};
 
 #[derive(Queryable)]
 pub struct Cluster {
@@ -24,7 +24,29 @@ pub struct Computation {
     pub correctly_clustered: Option<i32>,
     pub incorrectly_clustered: Option<i32>,
     pub accuracy: Option<f32>,
-    pub anomaly: Option<i32>
+    pub anomaly: Option<i32>,
+    #[serde(serialize_with = "cluster_serialize")]
+    pub clusters: Option<String>
+}
+
+///
+/// We need this function to serialize our clusters.
+/// Our clusters are in the format of a serialized list, so we need to deserialize
+/// into a Vector before re-serializing, e.g.:
+/// '[1, 2, 3]' -> Vec[1, 2, 3] -> (json) [1, 2, 3]
+///
+fn cluster_serialize<S>(cluster: &Option<String>, ser: S) -> Result<S::Ok, S::Error> where S: Serializer {
+    if let Some(cluster) = cluster {
+        let cluster_vec: Vec<i32> = serde_json::from_str(&cluster).unwrap();
+        let mut seq = ser.serialize_seq(Some(cluster_vec.len()))?;
+        for cluster in cluster_vec {
+            seq.serialize_element(&cluster)?;
+        }
+        seq.end()
+    }
+    else {
+        ser.serialize_seq(Some(0))?.end()
+    }
 }
 
 #[derive(Insertable)]
