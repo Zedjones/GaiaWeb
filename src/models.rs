@@ -17,9 +17,13 @@ pub struct Computation {
     pub email: String,
     #[serde(skip_serializing)]
     pub csv_file: Vec<u8>,
+    #[serde(serialize_with = "base64_serialize")]
     pub hr_png: Option<Vec<u8>>,
+    #[serde(serialize_with = "base64_serialize")]
     pub trimmed_png: Option<Vec<u8>>,
+    #[serde(serialize_with = "base64_serialize")]
     pub distance_png: Option<Vec<u8>>,
+    #[serde(serialize_with = "base64_serialize")]
     pub pm_png: Option<Vec<u8>>,
     pub correctly_clustered: Option<i32>,
     pub incorrectly_clustered: Option<i32>,
@@ -46,6 +50,15 @@ fn cluster_serialize<S>(cluster: &Option<String>, ser: S) -> Result<S::Ok, S::Er
     }
     else {
         ser.serialize_seq(Some(0))?.end()
+    }
+}
+
+fn base64_serialize<S>(bytes: &Option<Vec<u8>>, ser: S) -> Result<S::Ok, S::Error> where S: Serializer {
+    if let Some(bytes) = bytes {
+        ser.serialize_str(&base64::encode(bytes))
+    }
+    else {
+        ser.serialize_none()
     }
 }
 

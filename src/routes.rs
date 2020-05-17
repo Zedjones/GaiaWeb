@@ -59,7 +59,6 @@ async fn create_computation(mut payload: Multipart, mut settings: Query<PutSetti
             let data = chunk.unwrap();
             my_vec.push(data);
         }
-        // Currently not using this until we write to db
         let csv_file = my_vec.concat();
         let new_comp = NewComputation {
             email: settings.0.email.clone(),
@@ -86,10 +85,10 @@ async fn get_computations(settings: Query<GetSettings>, db_pool: Data<DbPool>) -
 
     let db = db_pool.get().unwrap();
 
-    let _user_computations = computations
+    let user_computations = computations
         .filter(email.eq(&settings.0.email))
         .load::<super::models::Computation>(&db)
         .expect(&format!("Error loading computations for user {}", &settings.0.email));
 
-    HttpResponse::Ok().json(_user_computations)
+    HttpResponse::Ok().json(user_computations)
 }
