@@ -70,15 +70,17 @@ def run_gaia(comp_id, db_scan, epsilon, cluster_size, filename):
         if n_clusters > 0:
             correctly_clustered, incorrectly_clustered, accuracy = compare_hr(trimmed_df, df_all, df_all_temp)
 
-    this_comp.accuracy = accuracy
-    this_comp.anomaly = anomaly
-    this_comp.correctly_clustered = correctly_clustered
-    this_comp.incorrectly_clustered = incorrectly_clustered
+        this_comp.accuracy = accuracy
+        this_comp.anomaly = anomaly
+        this_comp.correctly_clustered = correctly_clustered
+        this_comp.incorrectly_clustered = incorrectly_clustered
+        this_comp.pm_png = pm_bytes.getvalue()
+
     this_comp.hr_png = hr_bytes.getvalue()
     this_comp.distance_png = distance_bytes.getvalue()
     this_comp.trimmed_png = trimmed_bytes.getvalue()
-    this_comp.pm_png = pm_bytes.getvalue()
-    if len(actual_cluster_sizes) > 0:
+    
+    if not actual_cluster_sizes is None and len(actual_cluster_sizes) > 0:
         this_comp.clusters = str(actual_cluster_sizes)
 
     distance_bytes.close()
