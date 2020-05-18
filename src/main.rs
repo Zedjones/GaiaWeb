@@ -6,6 +6,7 @@ mod schema;
 #[macro_use]
 extern crate diesel;
 
+use actix_files as fs;
 use actix_web::{App, HttpServer, middleware::Logger};
 use log::{info, error};
 use env_logger::Env;
@@ -15,7 +16,7 @@ use std::time::Duration;
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager};
 
-use routes::{create_computation, get_computations};
+use routes::{create_computation, get_computations, index};
 
 type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 
@@ -80,6 +81,8 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .service(create_computation)
             .service(get_computations)
+            .service(index)
+            .service(fs::Files::new("/", "frontend/build/").show_files_listing())
             .data(send_clone.clone())
             .data(pool.clone())
             .wrap(Logger::default())

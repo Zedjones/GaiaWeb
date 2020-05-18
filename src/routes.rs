@@ -1,5 +1,6 @@
 
 use actix_multipart::Multipart;
+use actix_files as fs;
 use actix_web::{web, put, get, HttpResponse, Error, Responder};
 use lapin::{BasicProperties, Channel, options::*};
 use futures::{StreamExt, TryStreamExt};
@@ -91,4 +92,9 @@ async fn get_computations(settings: Query<GetSettings>, db_pool: Data<DbPool>) -
         .expect(&format!("Error loading computations for user {}", &settings.0.email));
 
     HttpResponse::Ok().json(user_computations)
+}
+
+#[get("/")]
+async fn index() -> impl Responder {
+    fs::NamedFile::open("./frontend/build/index.html")
 }
