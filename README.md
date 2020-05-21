@@ -26,7 +26,7 @@ For proper web development, you need Rust, npm, and preferably Docker installed.
 To begin, go into the `frontend/` directory and run some npm commands:
 ```
 $ cd frontend/
-$ npm install && npm install -g npm-watch
+$ npm install && sudo npm install -g npm-watch
 $ npm run build
 ```
 Next, run RabbitMQ however you want. Docker is an easy way:
