@@ -6,6 +6,8 @@ A web server and web worker implementation for [Gaia](https://github.com/lauramv
 <!-- vim-markdown-toc GFM --> 
 * [Usage](#usage)
 * [Development](#development)
+  * [Web Backend/Frontend](#web-backendfrontend)
+  * [Worker](#worker)
 
 ## Usage
 The following environment variables can be set to configure the behavior of the application:
