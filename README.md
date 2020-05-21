@@ -40,8 +40,13 @@ If you'll be working on the frontend, you can use `npm-watch` to automatically r
 $ cd frontend/
 $ npm run watch
 ```
-You can also use the standard React build scripts, but the resources that the backend serves will not be updated and any calls from the frontend to the backend will fail. However, it does enable debugging of the React code so it might come in handy:
+You can also use the standard React scripts, but the resources that the backend serves will not be updated and any calls from the frontend to the backend will fail. However, it does enable debugging of the React code so it might come in handy:
 ```
 $ cd frontend/
 $ npm run start
 ```
+Finally, run the web server using `cargo`:
+```
+$ cargo run
+```
+Now, you can access the web server at [http://localhost:8000](http://localhost:8000).
