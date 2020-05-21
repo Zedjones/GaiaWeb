@@ -18,10 +18,11 @@ The following environment variables can be set to configure the behavior of the 
 The behavior of the logger can be configured using the `RUST_LOG`
 variable as per the specification [here](https://docs.rs/env_logger/0.7.1/env_logger/).
 
-Besides that, you can simply run the executable.
-
 ## Development
-For proper development, you need Rust, npm, and preferably Docker installed.
+
+### Web Backend/Frontend
+
+For proper web development, you need Rust, npm, and preferably Docker installed.
 To begin, go into the `frontend/` directory and run some npm commands:
 ```
 $ cd frontend/
@@ -50,3 +51,18 @@ Finally, run the web server using `cargo`:
 $ cargo run
 ```
 Now, you can access the web server at [http://localhost:8000](http://localhost:8000).
+
+### Worker
+
+The same environment variables also apply to the Python worker. However, the default value for `DATABASE_URL` is `../gaia.db` instead. To run it, you'll need Python 3.6+, pip, and the dependencies. You can install the dependencies as follows:
+```
+$ cd worker
+$ pip3 install --user -r requirements.txt
+```
+
+Now, you can run the worker with `python3` after initializing the Gaia submodule:
+```
+$ git submodule update --init
+$ cd worker
+$ python3 WebWorker.py
+```

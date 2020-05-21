@@ -22,7 +22,7 @@ RABBITMQ_ADDR = os.environ.get("RABBITMQ_ADDR") or "localhost"
 CONNECTION_TIMEOUT = 10
 
 _db_path = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "gaia.db"))
-DB_ADDR = os.environ.get("DATABASE_ADDR") or f"sqlite:////{_db_path}"
+DB_ADDR = os.environ.get("DATABASE_URL") or f"sqlite:////{_db_path}"
 engine = create_engine(DB_ADDR)
 Session = sessionmaker(bind=engine)
 
