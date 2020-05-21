@@ -68,3 +68,14 @@ $ git submodule update --init
 $ cd worker
 $ python3 WebWorker.py
 ```
+
+### Recommended Environment
+To quickly and effective write code for this project, VS Code is recommended with the following extensions:
+ - SQLite
+ - rust-analyzer
+ - Search crates.io
+ - Python
+ - crates
+ - Docker
+ - Docker Compose
+ - ESLint
