@@ -6,9 +6,11 @@ import { GoogleLogin, GoogleLogout } from 'react-google-login';
 
 export default function GoogleButton(props) {
   const [accessToken, setAccessToken] = useState('');
+  const [open, setOpen] = useState(false);
+  const [message, setMessage] = useState('');
 
   const login = response => {
-    setAccessToken(response.Zi.access_token);
+    setAccessToken(response.access_token);
     props.setLoggedIn(true);
   };
 
@@ -18,11 +20,11 @@ export default function GoogleButton(props) {
   };
 
   const handleLoginFailure = _ => {
-    <LoginAlert severity="error" message="Could not log in"/>
+    setMessage("Could not log in");
   };
   
   const handleLogoutFailure = _ => {
-    <LoginAlert severity="error" message="Could not log out"/>
+    setMessage("Could not log out");
   };
 
   return (
@@ -41,8 +43,10 @@ export default function GoogleButton(props) {
           onFailure={ handleLoginFailure }
           cookiePolicy={ 'single_host_origin' }
           responseType='code,token'
+          isSignedIn={true}
         />
       }
+      <LoginAlert severity="error" open={open} setOpen={setOpen} message={message}/>
     </div>
   )
 }
