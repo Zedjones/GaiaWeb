@@ -1,14 +1,9 @@
-matrix:
-    include:
-        - language: rust
-          rust:
-            - stable
-            - beta
-            - nightly
-          jobs:
-            allow_failures:
-              - rust: nightly
-            fast_finish: true
-        - language: node_js
-          node_js:
-            - stable
+language: rust
+rust:
+  - stable
+  - beta
+  - nightly
+jobs:
+  allow_failures:
+    - rust: nightly
+  fast_finish: true
