@@ -12,5 +12,3 @@ matrix:
         - language: node_js
           node_js:
             - stable
-          script: cd frontend/ && npm install && npm run build
-    
