@@ -35,8 +35,9 @@ export default function GoogleButton(props) {
           buttonText='Logout'
           onLogoutSuccess={ logout }
           onFailure={ handleLogoutFailure }
-        >
-        </GoogleLogout>: <GoogleLogin
+        />
+        : 
+        <GoogleLogin
           clientId={ Settings.GOOGLE_CLIENT_ID }
           buttonText='Login'
           onSuccess={ login }

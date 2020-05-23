@@ -1,13 +1,12 @@
-import React from 'react';
+import React, {useState} from 'react';
 import Bar from "./components/AppBar";
-import LoginAlert from "./components/LoginAlert";
 import './App.css';
 
 function App() {
+  const [loggedIn, setLoggedIn] = useState(false);
   return (
     <>
-      <Bar />
-      <LoginAlert severity={"error"} message={"Test"}/>
+      <Bar loggedIn={loggedIn} setLoggedIn={setLoggedIn}/>
     </>
   );
 }

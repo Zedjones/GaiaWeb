@@ -1,10 +1,11 @@
-import React, {useState} from 'react';
+import React from 'react';
 import { makeStyles } from '@material-ui/core/styles';
 import AppBar from '@material-ui/core/AppBar';
 import Toolbar from '@material-ui/core/Toolbar';
 import Typography from '@material-ui/core/Typography';
 import IconButton from '@material-ui/core/IconButton';
 import MenuIcon from '@material-ui/icons/Menu';
+import { PropTypes } from "prop-types";
 
 import GoogleLogin from "./GoogleButton";
 
@@ -20,9 +21,9 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
-export default function Bar() {
+export default function Bar(props) {
   const classes = useStyles();
-  const [loggedIn, setLoggedIn] = useState(false);
+  const {loggedIn, setLoggedIn} = props;
 
   return (
     <div className={classes.root}>
@@ -32,7 +33,7 @@ export default function Bar() {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" className={classes.title}>
-            Gaia {loggedIn.toString()}
+            Gaia
           </Typography>
           <GoogleLogin loggedIn={loggedIn} setLoggedIn={setLoggedIn}/>
           {/* <Button color="inherit">Login</Button> */}
@@ -40,4 +41,9 @@ export default function Bar() {
       </AppBar>
     </div>
   );
+}
+
+Bar.propTypes = {
+  loggedIn: PropTypes.bool,
+  setLoggedIn: PropTypes.func
 }
