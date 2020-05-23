@@ -1,9 +1,16 @@
-language: rust
-rust:
-    - stable
-    - beta
-    - nightly
-jobs:
-    allow_failures:
-        - rust: nightly
-    fast_finish: true
+matrix:
+    include:
+        - language: rust
+          rust:
+            - stable
+            - beta
+            - nightly
+          jobs:
+            allow_failures:
+              - rust: nightly
+            fast_finish: true
+        - language: node_js
+          node_js:
+            - stable
+          script: cd frontend/ && npm install && npm run build
+    
