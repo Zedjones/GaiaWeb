@@ -11,18 +11,13 @@ export default function GoogleButton(props) {
   const [message, setMessage] = useState('');
 
   const login = response => {
-    props.setLoggedIn(true);
-    props.setLoading(false);
     setAccessToken(response.access_token);
+    props.setLoggedIn(true);
   };
 
   const logout = _ => {
-    props.setLoggedIn(false);
     setAccessToken('');
-  };
-
-  const onRequest = _ => {
-    props.setLoading(true);
+    props.setLoggedIn(false);
   };
 
   const handleLoginFailure = _ => {
@@ -33,26 +28,23 @@ export default function GoogleButton(props) {
     setMessage("Could not log out");
   };
 
-  const { signIn, signInLoaded } = useGoogleLogin({
+  const { signIn, loaded } = useGoogleLogin({
     onSuccess: login,
     clientId: Settings.GOOGLE_CLIENT_ID,
-    buttonText: "Login",
     onFailure: handleLoginFailure,
     isSignedIn: true,
     responseType: 'code,token',
-    onRequest: onRequest,
     cookiePolicy: 'single_host_origin'
   });
 
-  const { signOut, signOutLoaded } = useGoogleLogout({
+  const { signOut } = useGoogleLogout({
     clientId: Settings.GOOGLE_CLIENT_ID,
-    buttonText: 'Logout',
     onLogoutSuccess: logout,
     onFailure: handleLogoutFailure
   });
 
   useEffect(() => {
-    props.setLoading(!signInLoaded);
+    props.setLoading(!loaded);
   });
 
   return (
