@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, {useState} from 'react';
 import PropTypes from 'prop-types';
 import LoginAlert from "./LoginAlert";
-import { Button } from "@material-ui/core";
 import Settings from '../Settings';
-import { useGoogleLogin, useGoogleLogout } from 'react-google-login';
+import GoogleLogin from "../react-google-login/google-login";
+import { GoogleLogout } from 'react-google-login';
 
 export default function GoogleButton(props) {
   const [accessToken, setAccessToken] = useState('');
@@ -16,8 +16,8 @@ export default function GoogleButton(props) {
   };
 
   const logout = _ => {
-    setAccessToken('');
     props.setLoggedIn(false);
+    setAccessToken('');
   };
 
   const handleLoginFailure = _ => {
@@ -28,31 +28,26 @@ export default function GoogleButton(props) {
     setMessage("Could not log out");
   };
 
-  const { signIn, loaded } = useGoogleLogin({
-    onSuccess: login,
-    clientId: Settings.GOOGLE_CLIENT_ID,
-    onFailure: handleLoginFailure,
-    isSignedIn: true,
-    responseType: 'code,token',
-    cookiePolicy: 'single_host_origin'
-  });
-
-  const { signOut } = useGoogleLogout({
-    clientId: Settings.GOOGLE_CLIENT_ID,
-    onLogoutSuccess: logout,
-    onFailure: handleLogoutFailure
-  });
-
-  useEffect(() => {
-    props.setLoading(!loaded);
-  });
-
   return (
     <div>
       { props.loggedIn ?
-        <Button onClick={signOut} color='inherit'> Logout </Button>
+        <GoogleLogout
+          clientId={ Settings.GOOGLE_CLIENT_ID }
+          buttonText='Logout'
+          onLogoutSuccess={ logout }
+          onFailure={ handleLogoutFailure }
+        />
         : 
-        <Button onClick={signIn} color='inherit'> Login </Button>
+        <GoogleLogin
+          clientId={ Settings.GOOGLE_CLIENT_ID }
+          buttonText='Login'
+          onSuccess={ login }
+          onFailure={ handleLoginFailure }
+          cookiePolicy={ 'single_host_origin' }
+          responseType='code,token'
+          isSignedIn={true}
+          setLoading={props.setLoading}
+        />
       }
       <LoginAlert severity="error" open={open} setOpen={setOpen} message={message}/>
     </div>
@@ -60,7 +55,7 @@ export default function GoogleButton(props) {
 }
 
 GoogleButton.propTypes = {
-  loggedIn: PropTypes.bool,
+  loggedIn: PropTypes.string,
   setLoggedIn: PropTypes.func,
   setLoading: PropTypes.func
 }
