@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
 import Bar from "./components/AppBar";
+import { Fade, CircularProgress, Typography } from "@material-ui/core";
 import './App.css';
 
 function App() {
@@ -9,8 +10,20 @@ function App() {
     <>
       <Bar loggedIn={loggedIn} setLoggedIn={setLoggedIn} setLoading={setLoading} loading={loading}/>
       {
-        loading ? "" :
-        loggedIn ? "Oh we logged" : "Oop no log"
+        loading ? 
+        <Fade
+          in={loading}
+          style={{
+            transitionDelay: '0ms',
+          }}
+          unmountOnExit
+        >
+          <CircularProgress />
+        </Fade>
+        :
+        <Typography>
+          {loggedIn ? "Oh we logged" : "Oop no log"}
+        </Typography>
       }
     </>
   );
