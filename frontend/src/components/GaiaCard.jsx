@@ -49,5 +49,5 @@ GaiaCard.propTypes = {
     correctlyClustered: PropTypes.number,
     incorrectlyClustered: PropTypes.number,
     anomaly: PropTypes.number,
-    clusters: PropTypes.number,
+    clusters: PropTypes.array,
 }
