@@ -14,7 +14,7 @@ export const ToStorybook = () =>
     correctlyClustered={430}
     incorrectlyClustered={63}
     anomaly={3412}
-    clusters={[145, 232, 312].join(", ")}
+    clusters={[145, 232, 312]}
   />
 
 ToStorybook.story = {

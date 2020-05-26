@@ -71,7 +71,7 @@ export default function GaiaCardList(props) {
             <ScatterPlotIcon />
           </Avatar>
         </ListItemAvatar>
-        <ListItemText primary="Cluster Sizes" secondary={clusters} />
+        <ListItemText primary="Cluster Sizes" secondary={clusters.join(", ")} />
       </ListItem>
     </List>
   );
