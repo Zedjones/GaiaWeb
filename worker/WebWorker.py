@@ -31,6 +31,7 @@ class Computation(Base):
 
     id = Column(Integer, primary_key=True)
     email = Column(Text)
+    title = Column(Text)
     csv_file = Column(BLOB)
     hr_png = Column(BLOB)
     trimmed_png = Column(BLOB)
@@ -96,7 +97,7 @@ def callback(ch, method, properties, body):
     epsilon = request_info["epsilon"]
     print(db_scan)
     cluster_size = request_info["cluster_size"]
-    filename = request_info["filename"]
+    filename = request_info["title"]
     gaia_data = run_gaia(request_info["data_id"], db_scan, epsilon, cluster_size, filename)
     ch.basic_ack(method.delivery_tag)
     print("Done")

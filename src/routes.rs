@@ -26,8 +26,8 @@ fn default_cluster_size() -> i32 {
 #[derive(Serialize, Deserialize, Debug)]
 struct PutSettings {
     data_id: Option<i32>,
-    filename: Option<String>,
     email: String,
+    title: String,
     #[serde(default = "default_db_scan")]
     db_scan: bool,
     #[serde(default = "default_epsilon")]
@@ -54,7 +54,6 @@ async fn create_computation(mut payload: Multipart, mut settings: Query<PutSetti
     // iterate over multipart stream
     while let Ok(Some(mut field)) = payload.try_next().await {
         let mut my_vec: Vec<Bytes> = Vec::new();
-        let filename = field.content_disposition().unwrap().get_filename().unwrap().to_string();
         // Field in turn is stream of *Bytes* object
         while let Some(chunk) = field.next().await {
             let data = chunk.unwrap();
@@ -63,12 +62,12 @@ async fn create_computation(mut payload: Multipart, mut settings: Query<PutSetti
         let csv_file = my_vec.concat();
         let new_comp = NewComputation {
             email: settings.0.email.clone(),
-            csv_file
+            title: settings.0.title.clone(),
+            csv_file,
         };
         let comp = new_comp.insert_computation(&db_pool);
         info!("Created computation with id: {}", comp.id);
         settings.0.data_id = Some(comp.id);
-        settings.0.filename = Some(filename);
         send_chan.basic_publish(
             "",
             "gaia_input",

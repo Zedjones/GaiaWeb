@@ -15,6 +15,7 @@ pub struct Cluster {
 pub struct Computation {
     pub id: i32,
     pub email: String,
+    pub title: String,
     #[serde(skip_serializing)]
     pub csv_file: Vec<u8>,
     #[serde(serialize_with = "base64_serialize")]
@@ -66,6 +67,7 @@ fn base64_serialize<S>(bytes: &Option<Vec<u8>>, ser: S) -> Result<S::Ok, S::Erro
 #[table_name = "computations"]
 pub struct NewComputation {
     pub email: String,
+    pub title: String,
     pub csv_file: Vec<u8>
 }
 
