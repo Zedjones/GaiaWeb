@@ -63,7 +63,7 @@ export default function GaiaCardList(props) {
             <HelpIcon />
           </Avatar>
         </ListItemAvatar>
-        <ListItemText primary="Anomaly" secondary={anomaly} />
+        <ListItemText primary="Anomalies" secondary={anomaly} />
       </ListItem>
       <ListItem>
         <ListItemAvatar>

@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import PropTypes from 'prop-types';
 import LoginAlert from "./LoginAlert";
 import Settings from '../Settings';
@@ -6,18 +6,18 @@ import GoogleLogin from "../react-google-login/google-login";
 import { GoogleLogout } from 'react-google-login';
 
 export default function GoogleButton(props) {
-  const [accessToken, setAccessToken] = useState('');
+  const [email, setEmail] = useState('');
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState('');
 
   const login = response => {
-    setAccessToken(response.access_token);
+    setEmail(response.profileObj.email);
     props.setLoggedIn(true);
   };
 
   const logout = _ => {
     props.setLoggedIn(false);
-    setAccessToken('');
+    setEmail('');
   };
 
   const handleLoginFailure = _ => {
@@ -27,6 +27,10 @@ export default function GoogleButton(props) {
   const handleLogoutFailure = _ => {
     setMessage("Could not log out");
   };
+
+  useEffect(() => {
+    console.log(email);
+  })
 
   return (
     <div>
@@ -55,7 +59,7 @@ export default function GoogleButton(props) {
 }
 
 GoogleButton.propTypes = {
-  loggedIn: PropTypes.string,
+  loggedIn: PropTypes.bool,
   setLoggedIn: PropTypes.func,
   setLoading: PropTypes.func
 }

@@ -23,7 +23,6 @@ const useStyles = makeStyles((theme) => ({
 
 export default function Bar(props) {
   const classes = useStyles();
-  const {loggedIn, setLoggedIn, setLoading} = props;
 
   return (
     <div className={classes.root}>
@@ -35,8 +34,7 @@ export default function Bar(props) {
           <Typography variant="h6" className={classes.title}>
             Gaia
           </Typography>
-          <GoogleLogin loggedIn={loggedIn} setLoggedIn={setLoggedIn} setLoading={setLoading}/>
-          {/* <Button color="inherit">Login</Button> */}
+          <GoogleLogin {...props}/>
         </Toolbar>
       </AppBar>
     </div>
