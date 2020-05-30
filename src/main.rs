@@ -6,8 +6,6 @@ mod schema;
 #[macro_use]
 extern crate diesel;
 
-use actix_files as fs;
-use actix_web::{App, HttpServer, middleware::Logger};
 use log::{info, error};
 use env_logger::Env;
 use lapin::{Connection, ConnectionProperties, options::*, types::FieldTable, CloseOnDrop};
@@ -16,14 +14,15 @@ use std::time::Duration;
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager};
 
-use routes::{create_computation, get_computations, index};
+use routes::get_routes;
 
 type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
+type WarpAddress = ([u8; 4], u16);
 
 #[cfg(debug_assertions)]
-    const ADDR: &'static str = "127.0.0.1:8000";
+    const ADDR: &'static WarpAddress = &([127, 0, 0, 1], 8080);
 #[cfg(not(debug_assertions))]
-    const ADDR: &'static str = "0.0.0.0:8000";
+    const ADDR: &'static WarpAddress = &([127, 0, 0, 1], 8080);
 
 const CONN_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -45,9 +44,9 @@ async fn connect_timeout() -> Option<CloseOnDrop<Connection>> {
     }
 }
 
-#[actix_rt::main]
-async fn main() -> std::io::Result<()> {
-    env_logger::from_env(Env::default().default_filter_or("gaia=info,actix=info")).init();
+#[tokio::main]
+async fn main() {
+    env_logger::from_env(Env::default().default_filter_or("gaia=info,warp=info")).init();
 
     let rabbit_conn = match connect_timeout().await {
         Some(conn) => conn,
@@ -77,17 +76,8 @@ async fn main() -> std::io::Result<()> {
 
     diesel_migrations::run_pending_migrations(&pool.get().unwrap()).unwrap();
 
-    HttpServer::new(move || {
-        App::new()
-            .service(create_computation)
-            .service(get_computations)
-            .service(index)
-            .service(fs::Files::new("/", "frontend/build/").show_files_listing())
-            .data(send_clone.clone())
-            .data(pool.clone())
-            .wrap(Logger::default())
-    })
-    .bind(ADDR)?
-    .run()
-    .await
+    let routes = get_routes(pool, send_clone);
+    warp::serve(routes)
+        .run(*ADDR)
+        .await;
 }

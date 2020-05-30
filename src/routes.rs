@@ -1,13 +1,12 @@
 
-use actix_multipart::Multipart;
-use actix_files as fs;
-use actix_web::{web, put, get, HttpResponse, Error, Responder};
 use lapin::{BasicProperties, Channel, options::*};
 use futures::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
-use web::{Bytes, Query, Data};
 use log::info;
 use diesel::prelude::*;
+use warp::filters::multipart::FormData;
+use warp::{Rejection, Reply, Filter};
+use bytes::buf::Buf;
 
 use super::DbPool;
 
@@ -36,64 +35,83 @@ struct PutSettings {
     cluster_size: i32
 }
 
-#[derive(Deserialize)]
-struct GetSettings {
-    email: String
-}
-
 #[derive(Serialize, Debug)]
 struct UserComputation {
     computation: Vec<super::models::Computation>,
     clusters: Vec<i32>
 }
 
-#[put("/computation")]
-async fn create_computation(mut payload: Multipart, mut settings: Query<PutSettings>, 
-                            send_chan: Data<Channel>, db_pool: Data<DbPool>) -> Result<HttpResponse, Error> {
+async fn create_computation(mut payload: FormData, mut settings: PutSettings, 
+                            send_chan: Channel, db_pool: DbPool) -> Result<impl Reply, Rejection> {
     use super::models::NewComputation;
     // iterate over multipart stream
-    while let Ok(Some(mut field)) = payload.try_next().await {
-        let mut my_vec: Vec<Bytes> = Vec::new();
-        // Field in turn is stream of *Bytes* object
+    while let Ok(Some(part)) = payload.try_next().await {
+        let mut csv_file: Vec<u8> = Vec::new();
+        let mut field = part.stream();
         while let Some(chunk) = field.next().await {
             let data = chunk.unwrap();
-            my_vec.push(data);
+            csv_file.append(&mut data.bytes().to_vec());
         }
-        let csv_file = my_vec.concat();
+        log::info!("Length of file: {}", csv_file.len());
         let new_comp = NewComputation {
-            email: settings.0.email.clone(),
-            title: settings.0.title.clone(),
+            email: settings.email.clone(),
+            title: settings.title.clone(),
             csv_file,
         };
         let comp = new_comp.insert_computation(&db_pool);
         info!("Created computation with id: {}", comp.id);
-        settings.0.data_id = Some(comp.id);
+        settings.data_id = Some(comp.id);
         send_chan.basic_publish(
             "",
             "gaia_input",
             BasicPublishOptions::default(),
-            serde_json::to_vec(&settings.0).unwrap(),
+            serde_json::to_vec(&settings).unwrap(),
             BasicProperties::default()
         ).await.unwrap();
     }
-    Ok(HttpResponse::Ok().into())
+    Ok(warp::reply())
 }
 
-#[get("/computation")]
-async fn get_computations(settings: Query<GetSettings>, db_pool: Data<DbPool>) -> impl Responder {
+async fn get_computations(user_email: String, db_pool: DbPool) -> Result<impl Reply, Rejection> {
     use super::schema::computations::dsl::*;
 
     let db = db_pool.get().unwrap();
 
     let user_computations = computations
-        .filter(email.eq(&settings.0.email))
+        .filter(email.eq(&user_email))
         .load::<super::models::Computation>(&db)
-        .expect(&format!("Error loading computations for user {}", &settings.0.email));
+        .expect(&format!("Error loading computations for user {}", user_email));
 
-    HttpResponse::Ok().json(user_computations)
+    Ok(warp::reply::json(&user_computations))
 }
 
-#[get("/")]
-async fn index() -> impl Responder {
-    fs::NamedFile::open("./frontend/build/index.html")
+fn with_pool(pool: DbPool) -> impl Filter<Extract = (DbPool,), Error = std::convert::Infallible> + Clone {
+    warp::any().map(move || pool.clone())
+}
+
+fn with_channel(chan: Channel) -> impl Filter<Extract = (Channel,), Error = std::convert::Infallible> + Clone {
+    warp::any().map(move || chan.clone())
+}
+
+pub fn get_routes(pool: DbPool, send_chan: Channel) -> 
+        impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+
+    let react_files = warp::get().and(warp::fs::dir("frontend/build/"));
+
+    let put_computation = warp::path("computation")
+        .and(warp::put())
+        // Set max size to 1 GB
+        .and(warp::multipart::form().max_length(1_000_000_000))
+        .and(warp::query::query::<PutSettings>())
+        .and(with_channel(send_chan.clone()))
+        .and(with_pool(pool.clone()))
+        .and_then(create_computation);
+
+    let get_user_computations = warp::path!("computation" / String)
+        .and(warp::get())
+        .and(with_pool(pool.clone()))
+        .and_then(get_computations);
+
+    let log = warp::log("gaia_web");
+    get_user_computations.or(put_computation.or(react_files)).with(log)
 }
