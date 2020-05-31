@@ -8,7 +8,7 @@ extern crate diesel;
 
 use log::{info, error};
 use env_logger::Env;
-use lapin::{Connection, ConnectionProperties, options::*, types::FieldTable, CloseOnDrop};
+use lapin::{Connection, ConnectionProperties, options::*, types::FieldTable};
 use std::time::Duration;
 
 use diesel::prelude::*;
@@ -26,7 +26,7 @@ type WarpAddress = ([u8; 4], u16);
 
 const CONN_TIMEOUT: Duration = Duration::from_secs(10);
 
-async fn connect_timeout() -> Option<CloseOnDrop<Connection>> {
+async fn connect_timeout() -> Option<Connection> {
     let addr = std::env::var("RABBITMQ_ADDR").unwrap_or("127.0.0.1".to_string());
     let uri = format!("amqp://{}:5672/%2f", addr);
     let start = std::time::Instant::now();
