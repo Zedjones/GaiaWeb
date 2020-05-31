@@ -24,12 +24,12 @@ variable as per the specification [here](https://docs.rs/env_logger/0.7.1/env_lo
 
 ### Web Backend/Frontend
 
-For proper web development, you need Rust, npm, and preferably Docker installed.
+You need Rust, npm, and preferably Docker installed.
 To begin, go into the `frontend/` directory and run some npm commands:
 ```
 $ cd frontend/
-$ npm install && sudo npm install -g npm-watch
-$ npm run build
+$ npm install
+$ npm start
 ```
 Next, run RabbitMQ however you want. Docker is an easy way:
 ```
@@ -37,22 +37,11 @@ $ docker run -d -p 15672:15672 -p 5672:5672 rabbitmq:3-management
 ```
 The management container gives us a nice web interface at [http://localhost:15672](http://localhost:15672).
 
-
-If you'll be working on the frontend, you can use `npm-watch` to automatically rebuild the frontend whenever you make any changes.
-```
-$ cd frontend/
-$ npm run watch
-```
-You can also use the standard React scripts, but the resources that the backend serves will not be updated and any calls from the frontend to the backend will fail. However, it does enable debugging of the React code so it might come in handy:
-```
-$ cd frontend/
-$ npm run start
-```
 Finally, run the web server using `cargo`:
 ```
 $ cargo run
 ```
-Now, you can access the web server at [http://localhost:8000](http://localhost:8000).
+Now, you can access the web server at [http://localhost:8080](http://localhost:8080).
 
 ### Worker
 
