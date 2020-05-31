@@ -22,7 +22,7 @@ type WarpAddress = ([u8; 4], u16);
 #[cfg(debug_assertions)]
     const ADDR: &'static WarpAddress = &([127, 0, 0, 1], 8080);
 #[cfg(not(debug_assertions))]
-    const ADDR: &'static WarpAddress = &([127, 0, 0, 1], 8080);
+    const ADDR: &'static WarpAddress = &([0, 0, 0, 0], 8080);
 
 const CONN_TIMEOUT: Duration = Duration::from_secs(10);
 
