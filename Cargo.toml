@@ -19,3 +19,6 @@ futures = "0.3.5"
 diesel = { version = "1.4.4", features = ["sqlite", "r2d2"] }
 diesel_migrations = "1.4.0"
 bytes = "0.5.4"
+juniper = { git="https://github.com/graphql-rust/juniper" }
+juniper_warp = { git="https://github.com/graphql-rust/juniper" }
+juniper_subscriptions = { git="https://github.com/graphql-rust/juniper" }

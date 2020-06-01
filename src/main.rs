@@ -1,6 +1,7 @@
 mod routes;
 mod models;
 mod schema;
+mod graphql;
 
 // Still need this because Diesel is a bit outdated until 2.0
 #[macro_use]
