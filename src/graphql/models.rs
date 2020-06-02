@@ -46,7 +46,7 @@ impl Computation {
     }
 
     fn incorrectly_clustered(&self) -> Option<i32> {
-        self.correctly_clustered
+        self.incorrectly_clustered
     }
 
     fn accuracy(&self) -> Option<f64> {
