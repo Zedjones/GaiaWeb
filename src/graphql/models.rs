@@ -59,10 +59,7 @@ impl Computation {
 
     fn clusters(&self) -> Option<Vec<i32>> {
         self.clusters.as_ref().and_then(|cluster_str| {
-            Some(cluster_str[1..cluster_str.len()-1] 
-                .split(",")
-                .map(|cluster| cluster.trim().parse::<i32>().unwrap())
-                .collect::<Vec<i32>>())
+            Some(serde_json::from_str::<Vec<i32>>(cluster_str).unwrap())
         })
     }
 
