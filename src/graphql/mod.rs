@@ -58,8 +58,12 @@ impl Computation {
     }
 
     fn clusters(&self) -> Option<Vec<i32>> {
-        //FIXME
-        Some(vec![1, 2, 3])
+        self.clusters.as_ref().and_then(|cluster_str| {
+            Some(cluster_str[1..cluster_str.len()] 
+                .split(",")
+                .map(|cluster| cluster.parse::<i32>().unwrap())
+                .collect::<Vec<i32>>())
+        })
     }
 
 }
