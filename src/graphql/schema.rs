@@ -25,9 +25,8 @@ pub(crate) struct Query;
     Context = Context,
 )]
 impl Query {
-    #[graphql (
-        name = "getComputations",
-        arguments (
+    #[graphql(
+        arguments(
             user_email (
                 name = "email"
             )
