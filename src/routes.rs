@@ -119,9 +119,13 @@ pub fn get_routes(pool: DbPool, send_chan: Channel) ->
 
     let graphql_filter = juniper_warp::make_graphql_filter(schema(), with_context(pool.clone()).boxed());
     let graphql = warp::path("graphql")
-        .and(warp::post())
+        .and(warp::get())
         .and(graphql_filter);
 
+    let graphiql = warp::path("graphiql")
+        .and(warp::get())
+        .and(juniper_warp::graphiql_filter("/graphql", None));
+
     let log = warp::log("gaia_web");
-    graphql.or(get_user_computations.or(put_computation.or(react_files))).with(log)
+    graphiql.or(graphql.or(get_user_computations.or(put_computation.or(react_files)))).with(log)
 }
