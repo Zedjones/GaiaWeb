@@ -9,6 +9,7 @@ use warp::{Rejection, Reply, Filter};
 use bytes::buf::Buf;
 
 use super::DbPool;
+use crate::graphql::schema::{Context, schema};
 
 fn default_db_scan() -> bool {
     false
@@ -89,6 +90,10 @@ fn with_pool(pool: DbPool) -> impl Filter<Extract = (DbPool,), Error = std::conv
     warp::any().map(move || pool.clone())
 }
 
+fn with_context(pool: DbPool) -> impl Filter<Extract = (Context,), Error = std::convert::Infallible> + Clone {
+    warp::any().map(move || Context{ pool: pool.clone() })
+}
+
 fn with_channel(chan: Channel) -> impl Filter<Extract = (Channel,), Error = std::convert::Infallible> + Clone {
     warp::any().map(move || chan.clone())
 }
@@ -112,6 +117,11 @@ pub fn get_routes(pool: DbPool, send_chan: Channel) ->
         .and(with_pool(pool.clone()))
         .and_then(get_computations);
 
+    let graphql_filter = juniper_warp::make_graphql_filter(schema(), with_context(pool.clone()).boxed());
+    let graphql = warp::path("graphql")
+        .and(warp::post())
+        .and(graphql_filter);
+
     let log = warp::log("gaia_web");
-    get_user_computations.or(put_computation.or(react_files)).with(log)
+    graphql.or(get_user_computations.or(put_computation.or(react_files))).with(log)
 }

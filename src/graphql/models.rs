@@ -62,5 +62,4 @@ impl Computation {
             Some(serde_json::from_str::<Vec<i32>>(cluster_str).unwrap())
         })
     }
-
 }

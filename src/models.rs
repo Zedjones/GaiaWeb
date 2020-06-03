@@ -4,13 +4,6 @@ use super::DbPool;
 use diesel::{QueryDsl, ExpressionMethods, RunQueryDsl};
 use serde::{Serialize, Serializer, ser::SerializeSeq};
 
-#[derive(Queryable)]
-pub struct Cluster {
-    pub computation_id: i32,
-    pub cluster_number: i32,
-    pub stars_number: i32
-}
-
 #[derive(Queryable, Debug, Serialize)]
 pub struct Computation {
     pub id: i32,
