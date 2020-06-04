@@ -27,22 +27,15 @@ pub(crate) struct Query;
 #[juniper::graphql_object(Context = Context)]
 impl Query {
     #[graphql(arguments(user_email(name = "email")))]
-    fn get_computations(context: &Context, user_email: String) -> Option<Vec<Computation>> {
+    fn get_computations(context: &Context, user_email: String) -> Vec<Computation> {
         use crate::schema::computations::dsl::*;
         
         let db = context.pool.get().unwrap();
 
-        let user_computations = computations
+        computations
             .filter(email.eq(&user_email))
             .load::<crate::models::Computation>(&db)
-            .expect(&format!("Error loading computations for user {}", user_email));
-    
-        if user_computations.len() == 0 {
-            None
-        }
-        else {
-            Some(user_computations)
-        }
+            .expect(&format!("Error loading computations for user {}", user_email))
     }
 }
 
