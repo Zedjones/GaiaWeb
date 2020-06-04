@@ -1,12 +1,16 @@
 
 use lapin::{BasicProperties, Channel, options::*};
-use futures::{StreamExt, TryStreamExt};
+use futures::{StreamExt, TryStreamExt, Future, FutureExt};
+use std::pin::Pin;
 use serde::{Deserialize, Serialize};
 use log::info;
 use diesel::prelude::*;
 use warp::filters::multipart::FormData;
 use warp::{Rejection, Reply, Filter};
+use juniper_subscriptions::Coordinator;
+use juniper_warp::subscriptions::graphql_subscriptions;
 use bytes::buf::Buf;
+use std::sync::Arc;
 
 use super::DbPool;
 use crate::graphql::schema::{Context, schema};
@@ -122,10 +126,35 @@ pub fn get_routes(pool: DbPool, send_chan: Channel) ->
         .and(warp::get())
         .and(graphql_filter);
 
+    let coordinator = Arc::new(juniper_subscriptions::Coordinator::new(schema()));
+
+    let subscriptions = warp::path("subscriptions")
+        .and(warp::ws())
+        .and(with_context(pool.clone()))
+        .and(warp::any().map(move || Arc::clone(&coordinator)))
+        .map(
+        |ws: warp::ws::Ws,
+                ctx: Context,
+                coordinator: Arc<Coordinator<'static, _, _, _, _, _>>| {
+                ws.on_upgrade(|websocket| -> Pin<Box<dyn Future<Output = ()> + Send>> {
+                    graphql_subscriptions(websocket, coordinator, ctx)
+                        .map(|r| {
+                            if let Err(e) = r {
+                                println!("Websocket error: {}", e);
+                            }
+                        })
+                        .boxed()
+                })
+            }
+        )
+        .map(|reply| {
+            warp::reply::with_header(reply, "Sec-WebSocket-Protocol", "graphql-ws")
+        });
+
     let graphiql = warp::path("graphiql")
         .and(warp::get())
         .and(juniper_warp::graphiql_filter("/graphql", None));
 
     let log = warp::log("gaia_web");
-    graphiql.or(graphql.or(get_user_computations.or(put_computation.or(react_files)))).with(log)
+    subscriptions.or(graphiql.or(graphql.or(get_user_computations.or(put_computation.or(react_files))))).with(log)
 }

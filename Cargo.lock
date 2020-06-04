@@ -792,6 +792,7 @@ dependencies = [
  "failure",
  "futures",
  "juniper",
+ "juniper_subscriptions",
  "serde",
  "serde_json",
  "tokio",
