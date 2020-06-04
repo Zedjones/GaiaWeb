@@ -133,9 +133,9 @@ pub fn get_routes(pool: DbPool, send_chan: Channel) ->
         .and(with_context(pool.clone()))
         .and(warp::any().map(move || Arc::clone(&coordinator)))
         .map(
-        |ws: warp::ws::Ws,
-                ctx: Context,
-                coordinator: Arc<Coordinator<'static, _, _, _, _, _>>| {
+       |ws: warp::ws::Ws,
+             ctx: Context,
+             coordinator: Arc<Coordinator<'static, _, _, _, _, _>>| {
                 ws.on_upgrade(|websocket| -> Pin<Box<dyn Future<Output = ()> + Send>> {
                     graphql_subscriptions(websocket, coordinator, ctx)
                         .map(|r| {
