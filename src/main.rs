@@ -1,15 +1,16 @@
-mod routes;
-mod models;
-mod schema;
 mod graphql;
+mod models;
+mod routes;
+mod schema;
 
 // Still need this because Diesel is a bit outdated until 2.0
 #[macro_use]
 extern crate diesel;
 
-use log::{info, error};
 use env_logger::Env;
-use lapin::{Connection, ConnectionProperties, options::*, types::FieldTable};
+use lapin::ExchangeKind;
+use lapin::{options::*, types::FieldTable, Connection, ConnectionProperties};
+use log::{error, info};
 use std::time::Duration;
 
 use diesel::prelude::*;
@@ -21,9 +22,9 @@ type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 type WarpAddress = ([u8; 4], u16);
 
 #[cfg(debug_assertions)]
-    const ADDR: &'static WarpAddress = &([127, 0, 0, 1], 8080);
+const ADDR: &'static WarpAddress = &([127, 0, 0, 1], 8080);
 #[cfg(not(debug_assertions))]
-    const ADDR: &'static WarpAddress = &([0, 0, 0, 0], 8080);
+const ADDR: &'static WarpAddress = &([0, 0, 0, 0], 8080);
 
 const CONN_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -36,10 +37,9 @@ async fn connect_timeout() -> Option<Connection> {
     loop {
         if let Ok(conn) = Connection::connect(&uri, ConnectionProperties::default()).await {
             info!("Successfully connected to RabbitMQ server");
-            break Some(conn)
-        }
-        else if start.elapsed() > CONN_TIMEOUT {
-            break None
+            break Some(conn);
+        } else if start.elapsed() > CONN_TIMEOUT {
+            break None;
         }
         std::thread::sleep(Duration::from_secs(1));
     }
@@ -58,27 +58,29 @@ async fn main() {
         }
     };
     let send_chan = rabbit_conn.create_channel().await.unwrap();
-    let _queue = send_chan
-        .queue_declare(
-            "gaia_input",
-            QueueDeclareOptions::default(),
-            FieldTable::default()
-        );
+    let _queue = send_chan.queue_declare(
+        "gaia_input",
+        QueueDeclareOptions::default(),
+        FieldTable::default(),
+    );
     let send_clone = send_chan.clone();
+
+    let _exchange = send_chan.exchange_declare(
+        "computation_updates",
+        ExchangeKind::Fanout,
+        ExchangeDeclareOptions::default(),
+        FieldTable::default(),
+    );
 
     let db_url = std::env::var("DATABASE_URL").unwrap_or("gaia.db".to_string());
     let manager = ConnectionManager::<SqliteConnection>::new(db_url);
-    let pool = r2d2::Pool::builder()
-        .build(manager)
-        .unwrap_or_else(|_| {
-            error!("Could not build DB pool.");
-            std::process::exit(1);
-        });
+    let pool = r2d2::Pool::builder().build(manager).unwrap_or_else(|_| {
+        error!("Could not build DB pool.");
+        std::process::exit(1);
+    });
 
     diesel_migrations::run_pending_migrations(&pool.get().unwrap()).unwrap();
 
     let routes = get_routes(pool, send_clone);
-    warp::serve(routes)
-        .run(*ADDR)
-        .await;
+    warp::serve(routes).run(*ADDR).await;
 }

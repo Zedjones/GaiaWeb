@@ -1,23 +1,19 @@
-use crate::DbPool;
 use crate::models::Computation;
+use crate::DbPool;
 use diesel::prelude::*;
-use juniper::{RootNode, EmptyMutation, FieldError};
-use std::pin::Pin;
 use futures::Stream;
+use juniper::{EmptyMutation, FieldError, RootNode};
+use std::pin::Pin;
 
 type Schema = RootNode<'static, Query, EmptyMutation<Context>, Subscription>;
 
 pub(crate) fn schema() -> Schema {
-    Schema::new (
-        Query,
-        EmptyMutation::new(),
-        Subscription,
-    )
+    Schema::new(Query, EmptyMutation::new(), Subscription)
 }
 
 #[derive(Clone)]
 pub(crate) struct Context {
-    pub pool: DbPool
+    pub pool: DbPool,
 }
 
 impl juniper::Context for Context {}
@@ -29,13 +25,16 @@ impl Query {
     #[graphql(arguments(user_email(name = "email")))]
     fn get_computations(context: &Context, user_email: String) -> Vec<Computation> {
         use crate::schema::computations::dsl::*;
-        
+
         let db = context.pool.get().unwrap();
 
         computations
             .filter(email.eq(&user_email))
             .load::<crate::models::Computation>(&db)
-            .expect(&format!("Error loading computations for user {}", user_email))
+            .expect(&format!(
+                "Error loading computations for user {}",
+                user_email
+            ))
     }
 }
 

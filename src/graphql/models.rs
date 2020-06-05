@@ -4,8 +4,7 @@ impl Computation {
     fn bytes_to_str(bytes: &Option<Vec<u8>>) -> Option<String> {
         if let Some(hr_png) = bytes {
             Some(base64::encode(hr_png))
-        }
-        else {
+        } else {
             None
         }
     }
@@ -58,8 +57,8 @@ impl Computation {
     }
 
     fn clusters(&self) -> Option<Vec<i32>> {
-        self.clusters.as_ref().and_then(|cluster_str| {
-            Some(serde_json::from_str::<Vec<i32>>(cluster_str).unwrap())
-        })
+        self.clusters
+            .as_ref()
+            .and_then(|cluster_str| Some(serde_json::from_str::<Vec<i32>>(cluster_str).unwrap()))
     }
 }

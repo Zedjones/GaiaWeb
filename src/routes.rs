@@ -1,19 +1,18 @@
-
-use lapin::{BasicProperties, Channel, options::*};
-use futures::{StreamExt, TryStreamExt, Future, FutureExt};
-use std::pin::Pin;
-use serde::{Deserialize, Serialize};
-use log::info;
+use bytes::buf::Buf;
 use diesel::prelude::*;
-use warp::filters::multipart::FormData;
-use warp::{Rejection, Reply, Filter};
+use futures::{Future, FutureExt, StreamExt, TryStreamExt};
 use juniper_subscriptions::Coordinator;
 use juniper_warp::subscriptions::graphql_subscriptions;
-use bytes::buf::Buf;
+use lapin::{options::*, BasicProperties, Channel};
+use log::info;
+use serde::{Deserialize, Serialize};
+use std::pin::Pin;
 use std::sync::Arc;
+use warp::filters::multipart::FormData;
+use warp::{Filter, Rejection, Reply};
 
 use super::DbPool;
-use crate::graphql::schema::{Context, schema};
+use crate::graphql::schema::{schema, Context};
 
 fn default_db_scan() -> bool {
     false
@@ -37,17 +36,21 @@ struct PutSettings {
     #[serde(default = "default_epsilon")]
     epsilon: i32,
     #[serde(default = "default_cluster_size")]
-    cluster_size: i32
+    cluster_size: i32,
 }
 
 #[derive(Serialize, Debug)]
 struct UserComputation {
     computation: Vec<super::models::Computation>,
-    clusters: Vec<i32>
+    clusters: Vec<i32>,
 }
 
-async fn create_computation(mut payload: FormData, mut settings: PutSettings, 
-                            send_chan: Channel, db_pool: DbPool) -> Result<impl Reply, Rejection> {
+async fn create_computation(
+    mut payload: FormData,
+    mut settings: PutSettings,
+    send_chan: Channel,
+    db_pool: DbPool,
+) -> Result<impl Reply, Rejection> {
     use super::models::NewComputation;
     // iterate over multipart stream
     while let Ok(Some(part)) = payload.try_next().await {
@@ -66,13 +69,16 @@ async fn create_computation(mut payload: FormData, mut settings: PutSettings,
         let comp = new_comp.insert_computation(&db_pool);
         info!("Created computation with id: {}", comp.id);
         settings.data_id = Some(comp.id);
-        send_chan.basic_publish(
-            "",
-            "gaia_input",
-            BasicPublishOptions::default(),
-            serde_json::to_vec(&settings).unwrap(),
-            BasicProperties::default()
-        ).await.unwrap();
+        send_chan
+            .basic_publish(
+                "",
+                "gaia_input",
+                BasicPublishOptions::default(),
+                serde_json::to_vec(&settings).unwrap(),
+                BasicProperties::default(),
+            )
+            .await
+            .unwrap();
     }
     Ok(warp::reply())
 }
@@ -85,26 +91,36 @@ async fn get_computations(user_email: String, db_pool: DbPool) -> Result<impl Re
     let user_computations = computations
         .filter(email.eq(&user_email))
         .load::<super::models::Computation>(&db)
-        .expect(&format!("Error loading computations for user {}", user_email));
+        .expect(&format!(
+            "Error loading computations for user {}",
+            user_email
+        ));
 
     Ok(warp::reply::json(&user_computations))
 }
 
-fn with_pool(pool: DbPool) -> impl Filter<Extract = (DbPool,), Error = std::convert::Infallible> + Clone {
+fn with_pool(
+    pool: DbPool,
+) -> impl Filter<Extract = (DbPool,), Error = std::convert::Infallible> + Clone {
     warp::any().map(move || pool.clone())
 }
 
-fn with_context(pool: DbPool) -> impl Filter<Extract = (Context,), Error = std::convert::Infallible> + Clone {
-    warp::any().map(move || Context{ pool: pool.clone() })
+fn with_context(
+    pool: DbPool,
+) -> impl Filter<Extract = (Context,), Error = std::convert::Infallible> + Clone {
+    warp::any().map(move || Context { pool: pool.clone() })
 }
 
-fn with_channel(chan: Channel) -> impl Filter<Extract = (Channel,), Error = std::convert::Infallible> + Clone {
+fn with_channel(
+    chan: Channel,
+) -> impl Filter<Extract = (Channel,), Error = std::convert::Infallible> + Clone {
     warp::any().map(move || chan.clone())
 }
 
-pub fn get_routes(pool: DbPool, send_chan: Channel) -> 
-        impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-
+pub fn get_routes(
+    pool: DbPool,
+    send_chan: Channel,
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     let react_files = warp::get().and(warp::fs::dir("frontend/build/"));
 
     let put_computation = warp::path("computation")
@@ -121,10 +137,9 @@ pub fn get_routes(pool: DbPool, send_chan: Channel) ->
         .and(with_pool(pool.clone()))
         .and_then(get_computations);
 
-    let graphql_filter = juniper_warp::make_graphql_filter(schema(), with_context(pool.clone()).boxed());
-    let graphql = warp::path("graphql")
-        .and(warp::get())
-        .and(graphql_filter);
+    let graphql_filter =
+        juniper_warp::make_graphql_filter(schema(), with_context(pool.clone()).boxed());
+    let graphql = warp::path("graphql").and(warp::get()).and(graphql_filter);
 
     let coordinator = Arc::new(juniper_subscriptions::Coordinator::new(schema()));
 
@@ -133,7 +148,7 @@ pub fn get_routes(pool: DbPool, send_chan: Channel) ->
         .and(with_context(pool.clone()))
         .and(warp::any().map(move || Arc::clone(&coordinator)))
         .map(
-       |ws: warp::ws::Ws,
+            |ws: warp::ws::Ws,
              ctx: Context,
              coordinator: Arc<Coordinator<'static, _, _, _, _, _>>| {
                 ws.on_upgrade(|websocket| -> Pin<Box<dyn Future<Output = ()> + Send>> {
@@ -145,16 +160,16 @@ pub fn get_routes(pool: DbPool, send_chan: Channel) ->
                         })
                         .boxed()
                 })
-            }
+            },
         )
-        .map(|reply| {
-            warp::reply::with_header(reply, "Sec-WebSocket-Protocol", "graphql-ws")
-        });
+        .map(|reply| warp::reply::with_header(reply, "Sec-WebSocket-Protocol", "graphql-ws"));
 
     let graphiql = warp::path("graphiql")
         .and(warp::get())
         .and(juniper_warp::graphiql_filter("/graphql", None));
 
     let log = warp::log("gaia_web");
-    subscriptions.or(graphiql.or(graphql.or(get_user_computations.or(put_computation.or(react_files))))).with(log)
+    subscriptions
+        .or(graphiql.or(graphql.or(get_user_computations.or(put_computation.or(react_files)))))
+        .with(log)
 }
