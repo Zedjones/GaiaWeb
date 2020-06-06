@@ -105,10 +105,20 @@ fn with_pool(
     warp::any().map(move || pool.clone())
 }
 
+fn with_channel(
+    chan: Channel,
+) -> impl Filter<Extract = (Channel,), Error = std::convert::Infallible> + Clone {
+    warp::any().map(move || chan.clone())
+}
+
 fn with_context(
     pool: DbPool,
+    chan: Channel,
 ) -> impl Filter<Extract = (Context,), Error = std::convert::Infallible> + Clone {
-    warp::any().map(move || Context { pool: pool.clone() })
+    warp::any().map(move || Context {
+        pool: pool.clone(),
+        channel: chan.clone(),
+    })
 }
 
 pub fn get_routes(
@@ -122,7 +132,7 @@ pub fn get_routes(
         // Set max size to 1 GB
         .and(warp::multipart::form().max_length(1_000_000_000))
         .and(warp::query::query::<PutSettings>())
-        .and(warp::any().map(move || send_chan.clone()))
+        .and(with_channel(send_chan.clone()))
         .and(with_pool(pool.clone()))
         .and_then(create_computation);
 
@@ -131,8 +141,10 @@ pub fn get_routes(
         .and(with_pool(pool.clone()))
         .and_then(get_computations);
 
-    let graphql_filter =
-        juniper_warp::make_graphql_filter(schema(), with_context(pool.clone()).boxed());
+    let graphql_filter = juniper_warp::make_graphql_filter(
+        schema(),
+        with_context(pool.clone(), send_chan.clone()).boxed(),
+    );
     let graphql = warp::path("graphql").and(graphql_filter);
     let graphiql = warp::path("graphiql").and(juniper_warp::graphiql_filter("/graphql", None));
     let graphql_get = warp::get().and(graphql.clone().or(graphiql.clone()));
@@ -142,7 +154,7 @@ pub fn get_routes(
 
     let subscriptions = warp::path("subscriptions")
         .and(warp::ws())
-        .and(with_context(pool.clone()))
+        .and(with_context(pool.clone(), send_chan.clone()))
         .and(warp::any().map(move || Arc::clone(&coordinator)))
         .map(
             |ws: warp::ws::Ws,

@@ -46,7 +46,8 @@ async fn connect_timeout() -> Option<Connection> {
 }
 
 #[tokio::main]
-async fn main() {
+// Accept any error being thrown because who cares
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::from_env(Env::default().default_filter_or("gaia=info,warp=info")).init();
 
     let rabbit_conn = match connect_timeout().await {
@@ -57,20 +58,24 @@ async fn main() {
             std::process::exit(1);
         }
     };
-    let send_chan = rabbit_conn.create_channel().await.unwrap();
-    let _queue = send_chan.queue_declare(
-        "gaia_input",
-        QueueDeclareOptions::default(),
-        FieldTable::default(),
-    );
+    let send_chan = rabbit_conn.create_channel().await?;
+    let _queue = send_chan
+        .queue_declare(
+            "gaia_input",
+            QueueDeclareOptions::default(),
+            FieldTable::default(),
+        )
+        .await?;
     let send_clone = send_chan.clone();
 
-    let _exchange = send_chan.exchange_declare(
-        "computation_updates",
-        ExchangeKind::Fanout,
-        ExchangeDeclareOptions::default(),
-        FieldTable::default(),
-    );
+    send_chan
+        .exchange_declare(
+            "computation_updates",
+            ExchangeKind::Fanout,
+            ExchangeDeclareOptions::default(),
+            FieldTable::default(),
+        )
+        .await?;
 
     let db_url = std::env::var("DATABASE_URL").unwrap_or("gaia.db".to_string());
     let manager = ConnectionManager::<SqliteConnection>::new(db_url);
@@ -83,4 +88,5 @@ async fn main() {
 
     let routes = get_routes(pool, send_clone);
     warp::serve(routes).run(*ADDR).await;
+    Ok(())
 }
