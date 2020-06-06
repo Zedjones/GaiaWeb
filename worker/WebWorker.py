@@ -1,3 +1,4 @@
+from Gaia.generalized_tool.GaiaDMML import *
 import pika
 import os
 import json
@@ -16,15 +17,16 @@ from sqlalchemy.orm import sessionmaker
 Base = declarative_base()
 Session = None
 
-from Gaia.generalized_tool.GaiaDMML import *
 
 RABBITMQ_ADDR = os.environ.get("RABBITMQ_ADDR") or "localhost"
 CONNECTION_TIMEOUT = 10
 
-_db_path = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "gaia.db"))
+_db_path = os.path.abspath(os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "..", "gaia.db"))
 DB_ADDR = os.environ.get("DATABASE_URL") or f"sqlite:////{_db_path}"
 engine = create_engine(DB_ADDR)
 Session = sessionmaker(bind=engine)
+
 
 class Computation(Base):
     __tablename__ = 'computations'
@@ -43,9 +45,11 @@ class Computation(Base):
     anomaly = Column(Integer)
     clusters = Column(Text)
 
+
 def run_gaia(comp_id, db_scan, epsilon, cluster_size, filename):
     session = Session()
-    this_comp: Computation = session.query(Computation).filter_by(id=comp_id).first()
+    this_comp: Computation = session.query(
+        Computation).filter_by(id=comp_id).first()
 
     csv_file = io.BytesIO(this_comp.csv_file)
     distance_bytes = io.BytesIO()
@@ -65,11 +69,13 @@ def run_gaia(comp_id, db_scan, epsilon, cluster_size, filename):
         # do DBScan stuff
         pm_plots(df, trimmed_df, csv_file, cluster_size, filename, pm_bytes)
         df_all_temp = source_id(df, int(cluster_size), int(epsilon))
-        df_all, labels, n_clusters, n_noise = machine_learning(df, int(cluster_size), int(epsilon))
+        df_all, labels, n_clusters, n_noise = machine_learning(
+            df, int(cluster_size), int(epsilon))
         anomaly = n_noise
         actual_cluster_sizes = amount(labels, n_clusters, n_noise)
         if n_clusters > 0:
-            correctly_clustered, incorrectly_clustered, accuracy = compare_hr(trimmed_df, df_all, df_all_temp)
+            correctly_clustered, incorrectly_clustered, accuracy = compare_hr(
+                trimmed_df, df_all, df_all_temp)
 
         this_comp.accuracy = accuracy
         this_comp.anomaly = anomaly
@@ -80,7 +86,7 @@ def run_gaia(comp_id, db_scan, epsilon, cluster_size, filename):
     this_comp.hr_png = hr_bytes.getvalue()
     this_comp.distance_png = distance_bytes.getvalue()
     this_comp.trimmed_png = trimmed_bytes.getvalue()
-    
+
     if not actual_cluster_sizes is None and len(actual_cluster_sizes) > 0:
         this_comp.clusters = str(actual_cluster_sizes)
 
@@ -91,6 +97,9 @@ def run_gaia(comp_id, db_scan, epsilon, cluster_size, filename):
 
     session.commit()
 
+    return (this_comp.id, this_comp.email)
+
+
 def callback(ch, method, properties, body):
     request_info = json.loads(body)
     db_scan = request_info["db_scan"]
@@ -98,9 +107,15 @@ def callback(ch, method, properties, body):
     print(db_scan)
     cluster_size = request_info["cluster_size"]
     filename = request_info["title"]
-    gaia_data = run_gaia(request_info["data_id"], db_scan, epsilon, cluster_size, filename)
+    id, email = run_gaia(
+        request_info["data_id"], db_scan, epsilon, cluster_size, filename)
     ch.basic_ack(method.delivery_tag)
+
+    update_json_bytes = json.dumps({'id': id, 'email': email}).encode('ascii')
+    ch.basic_publish(exchange="computation_updates", routing_key='', body=update_json_bytes)
+
     print("Done")
+
 
 def timeout_connect():
     start = time.time()
@@ -113,16 +128,19 @@ def timeout_connect():
             pass
     return None
 
-def main(): 
+
+def main():
     connection = timeout_connect()
     if connection is None:
         print("Could not connect to RabbitMQ server.", file=sys.stderr)
         exit(1)
     channel = connection.channel()
-    channel.queue_declare("gaia_input")
+    channel.exchange_declare(
+        exchange="computation_updates", exchange_type='fanout')
 
     channel.basic_consume(queue="gaia_input", on_message_callback=callback)
     channel.start_consuming()
+
 
 if __name__ == '__main__':
     main()

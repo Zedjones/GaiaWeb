@@ -111,12 +111,6 @@ fn with_context(
     warp::any().map(move || Context { pool: pool.clone() })
 }
 
-fn with_channel(
-    chan: Channel,
-) -> impl Filter<Extract = (Channel,), Error = std::convert::Infallible> + Clone {
-    warp::any().map(move || chan.clone())
-}
-
 pub fn get_routes(
     pool: DbPool,
     send_chan: Channel,
@@ -128,7 +122,7 @@ pub fn get_routes(
         // Set max size to 1 GB
         .and(warp::multipart::form().max_length(1_000_000_000))
         .and(warp::query::query::<PutSettings>())
-        .and(with_channel(send_chan.clone()))
+        .and(warp::any().map(move || send_chan.clone()))
         .and(with_pool(pool.clone()))
         .and_then(create_computation);
 
@@ -139,7 +133,10 @@ pub fn get_routes(
 
     let graphql_filter =
         juniper_warp::make_graphql_filter(schema(), with_context(pool.clone()).boxed());
-    let graphql = warp::path("graphql").and(warp::get()).and(graphql_filter);
+    let graphql = warp::path("graphql").and(graphql_filter);
+    let graphiql = warp::path("graphiql").and(juniper_warp::graphiql_filter("/graphql", None));
+    let graphql_get = warp::get().and(graphql.clone().or(graphiql.clone()));
+    let graphql_post = warp::post().and(graphql.or(graphiql));
 
     let coordinator = Arc::new(juniper_subscriptions::Coordinator::new(schema()));
 
@@ -155,7 +152,7 @@ pub fn get_routes(
                     graphql_subscriptions(websocket, coordinator, ctx)
                         .map(|r| {
                             if let Err(e) = r {
-                                println!("Websocket error: {}", e);
+                                log::error!("Websocket error: {}", e);
                             }
                         })
                         .boxed()
@@ -164,12 +161,9 @@ pub fn get_routes(
         )
         .map(|reply| warp::reply::with_header(reply, "Sec-WebSocket-Protocol", "graphql-ws"));
 
-    let graphiql = warp::path("graphiql")
-        .and(warp::get())
-        .and(juniper_warp::graphiql_filter("/graphql", None));
-
     let log = warp::log("gaia_web");
     subscriptions
-        .or(graphiql.or(graphql.or(get_user_computations.or(put_computation.or(react_files)))))
+        .or(graphql_get
+            .or(graphql_post.or(get_user_computations.or(put_computation.or(react_files)))))
         .with(log)
 }
