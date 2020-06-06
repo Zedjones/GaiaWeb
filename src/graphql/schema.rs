@@ -4,6 +4,7 @@ use diesel::prelude::*;
 use futures::Stream;
 use juniper::{EmptyMutation, FieldError, RootNode};
 use lapin::{options::*, types::FieldTable};
+use serde::Deserialize;
 use std::pin::Pin;
 
 type Schema = RootNode<'static, Query, EmptyMutation<Context>, Subscription>;
@@ -42,6 +43,12 @@ impl Query {
 
 type ComputationStream = Pin<Box<dyn Stream<Item = Result<Computation, FieldError>> + Send>>;
 
+#[derive(Deserialize)]
+struct UpdateInfo {
+    pub id: i32,
+    pub email: String,
+}
+
 pub(crate) struct Subscription;
 
 #[juniper::graphql_subscription(Context = Context)]
@@ -65,6 +72,32 @@ impl Subscription {
             )
             .await
             .unwrap();
+        let consumer = ctx
+            .channel
+            .basic_consume(
+                &update_queue.name().to_string(),
+                "",
+                BasicConsumeOptions::default(),
+                FieldTable::default(),
+            )
+            .await
+            .unwrap();
+        // We have to make a static reference that gets copied instead of doing &user_email in the closure
+        // because doing that moves the original variable and that doesn't work with an iterator
+        let email_ref = &user_email;
+        let update_stream = consumer
+            .filter_map(|result| async move {
+                match result {
+                    Ok((_, delivery)) => Some(delivery.data),
+                    Err(_) => None,
+                }
+            })
+            .filter_map(|bytes| async move {
+                match serde_json::from_slice::<UpdateInfo>(&bytes) {
+                    Ok(res) if &res.email == email_ref => Some(res),
+                    _ => None,
+                }
+            });
         let stream = tokio::time::interval(std::time::Duration::from_secs(5)).map(move |_| {
             Err(FieldError::new(
                 "Some field error from handler",
