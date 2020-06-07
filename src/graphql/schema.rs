@@ -55,6 +55,7 @@ pub(crate) struct Subscription;
 impl Subscription {
     #[graphql(arguments(user_email(name = "email")))]
     async fn computations(ctx: &Context, user_email: String) -> ComputationStream {
+        use crate::schema::computations::dsl::*;
         // Create new queue to listen for updates
         let update_queue = ctx
             .channel
@@ -84,7 +85,9 @@ impl Subscription {
             .unwrap();
         // We have to make a static reference that gets copied instead of doing &user_email in the closure
         // because doing that moves the original variable and that doesn't work with an iterator
-        let email_ref = &user_email;
+        // FIXME: Make it so that the user email can be cloned and moved into the closure
+        let email_ref = user_email.clone();
+        let pool_clone = ctx.pool.clone();
         let update_stream = consumer
             .filter_map(|result| async move {
                 match result {
@@ -94,19 +97,19 @@ impl Subscription {
             })
             .filter_map(|bytes| async move {
                 match serde_json::from_slice::<UpdateInfo>(&bytes) {
-                    Ok(res) if &res.email == email_ref => Some(res),
+                    Ok(res) if res.email == email_ref => Some(res),
                     _ => None,
                 }
-            });
-        let stream = tokio::time::interval(std::time::Duration::from_secs(5)).map(move |_| {
-            Err(FieldError::new(
-                "Some field error from handler",
-                juniper::Value::Scalar(juniper::DefaultScalarValue::String(
-                    "some additional strng".to_string(),
-                )),
-            ))
-        });
+            })
+            .map(move |update| {
+                let db = pool_clone.get().unwrap();
 
-        Box::pin(stream)
+                Ok(computations
+                    .filter(id.eq(update.id))
+                    .first::<crate::models::Computation>(&db)
+                    .expect(&format!("Error loading computation w/ id {}", update.id)))
+            });
+
+        Box::pin(update_stream)
     }
 }
