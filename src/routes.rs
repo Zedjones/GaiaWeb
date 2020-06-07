@@ -79,6 +79,20 @@ async fn create_computation(
             )
             .await
             .unwrap();
+        send_chan
+            .basic_publish(
+                "computation_updates",
+                "",
+                BasicPublishOptions::default(),
+                serde_json::to_vec(&serde_json::json!({
+                    "email": settings.email,
+                    "id": settings.data_id,
+                }))
+                .unwrap(),
+                BasicProperties::default(),
+            )
+            .await
+            .unwrap();
     }
     Ok(warp::reply())
 }
