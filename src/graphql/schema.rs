@@ -86,18 +86,20 @@ impl Subscription {
         // We have to make a static reference that gets copied instead of doing &user_email in the closure
         // because doing that moves the original variable and that doesn't work with an iterator
         // FIXME: Make it so that the user email can be cloned and moved into the closure
-        let email_ref = user_email.clone();
         let pool_clone = ctx.pool.clone();
         let update_stream = consumer
-            .filter_map(|result| async move {
+            .map(move |result| {
+                (result, user_email.clone())
+            })
+            .filter_map(|(result, email_copy)| async move {
                 match result {
-                    Ok((_, delivery)) => Some(delivery.data),
+                    Ok((_, delivery)) => Some((delivery.data, email_copy)),
                     Err(_) => None,
                 }
             })
-            .filter_map(|bytes| async move {
+            .filter_map(|(bytes, email_copy)| async move {
                 match serde_json::from_slice::<UpdateInfo>(&bytes) {
-                    Ok(res) if res.email == email_ref => Some(res),
+                    Ok(res) if res.email == *email_copy => Some(res),
                     _ => None,
                 }
             })
