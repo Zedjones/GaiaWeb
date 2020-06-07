@@ -3,6 +3,12 @@ import ReactDOM from 'react-dom';
 import './index.css';
 import App from './App';
 import * as serviceWorker from './serviceWorker';
+import ApolloClient from 'apollo-boost';
+import Settings from './Settings';
+
+const client = new ApolloClient({
+  uri: `${Settings.API_URL_BASE}/graphql`,
+});
 
 ReactDOM.render(
   <React.StrictMode>
