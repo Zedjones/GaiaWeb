@@ -1,16 +1,18 @@
 use crate::models::Computation;
+use crate::routes::{PutSettings, QueueMessage};
 use crate::DbPool;
 use diesel::prelude::*;
 use futures::Stream;
-use juniper::{EmptyMutation, FieldError, RootNode};
-use lapin::{options::*, types::FieldTable};
+use juniper::{FieldError, RootNode};
+use lapin::{options::*, types::FieldTable, BasicProperties};
+use log::info;
 use serde::Deserialize;
 use std::pin::Pin;
 
-type Schema = RootNode<'static, Query, EmptyMutation<Context>, Subscription>;
+type Schema = RootNode<'static, Query, Mutation, Subscription>;
 
 pub(crate) fn schema() -> Schema {
-    Schema::new(Query, EmptyMutation::new(), Subscription)
+    Schema::new(Query, Mutation, Subscription)
 }
 
 #[derive(Clone)]
@@ -38,6 +40,57 @@ impl Query {
                 "Error loading computations for user {}",
                 user_email
             ))
+    }
+}
+
+pub(crate) struct Mutation;
+
+#[juniper::graphql_object(Context = Context)]
+impl Mutation {
+    fn add_computation(context: &Context, settings: PutSettings, csv_file: String) -> Computation {
+        use crate::models::NewComputation;
+        let new_comp = NewComputation {
+            email: settings.email.clone(),
+            title: settings.title.clone(),
+            csv_file: base64::decode(csv_file).unwrap(),
+        };
+        let comp = new_comp.insert_computation(&context.pool);
+        info!("Created computation with id: {}", comp.id);
+        let queue_message = QueueMessage {
+            data_id: comp.id,
+            settings: &settings,
+        };
+        futures::executor::block_on(async {
+            context
+                .channel
+                .basic_publish(
+                    "",
+                    "gaia_input",
+                    BasicPublishOptions::default(),
+                    serde_json::to_vec(&queue_message).unwrap(),
+                    BasicProperties::default(),
+                )
+                .await
+                .unwrap()
+        });
+        futures::executor::block_on(async {
+            context
+                .channel
+                .basic_publish(
+                    "computation_updates",
+                    "",
+                    BasicPublishOptions::default(),
+                    serde_json::to_vec(&serde_json::json!({
+                        "email": settings.email,
+                        "id": queue_message.data_id,
+                    }))
+                    .unwrap(),
+                    BasicProperties::default(),
+                )
+                .await
+                .unwrap();
+        });
+        comp
     }
 }
 
@@ -94,7 +147,7 @@ impl Subscription {
             .map(move |data| (data, user_email.clone()))
             .filter_map(|(bytes, email_copy)| async move {
                 match serde_json::from_slice::<UpdateInfo>(&bytes) {
-                    Ok(res) if res.email == *email_copy => Some(res),
+                    Ok(res) if res.email == email_copy => Some(res),
                     _ => None,
                 }
             })

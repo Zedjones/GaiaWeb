@@ -1,6 +1,7 @@
 use bytes::buf::Buf;
 use diesel::prelude::*;
 use futures::{Future, FutureExt, StreamExt, TryStreamExt};
+use juniper::GraphQLInputObject;
 use juniper_subscriptions::Coordinator;
 use juniper_warp::subscriptions::graphql_subscriptions;
 use lapin::{options::*, BasicProperties, Channel};
@@ -26,17 +27,26 @@ fn default_cluster_size() -> i32 {
     200
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct PutSettings {
-    data_id: Option<i32>,
-    email: String,
-    title: String,
+#[derive(Serialize, Deserialize, Debug, GraphQLInputObject)]
+pub(crate) struct PutSettings {
+    pub email: String,
+    pub title: String,
     #[serde(default = "default_db_scan")]
-    db_scan: bool,
+    #[graphql(default = "false")]
+    pub db_scan: bool,
     #[serde(default = "default_epsilon")]
-    epsilon: i32,
+    #[graphql(default = "5")]
+    pub epsilon: i32,
     #[serde(default = "default_cluster_size")]
-    cluster_size: i32,
+    #[graphql(default = "200")]
+    pub cluster_size: i32,
+}
+
+#[derive(Serialize)]
+pub(crate) struct QueueMessage<'a> {
+    #[serde(flatten)]
+    pub settings: &'a PutSettings,
+    pub data_id: i32,
 }
 
 #[derive(Serialize, Debug)]
@@ -47,7 +57,7 @@ struct UserComputation {
 
 async fn create_computation(
     mut payload: FormData,
-    mut settings: PutSettings,
+    settings: PutSettings,
     send_chan: Channel,
     db_pool: DbPool,
 ) -> Result<impl Reply, Rejection> {
@@ -68,13 +78,16 @@ async fn create_computation(
         };
         let comp = new_comp.insert_computation(&db_pool);
         info!("Created computation with id: {}", comp.id);
-        settings.data_id = Some(comp.id);
+        let queue_message = QueueMessage {
+            data_id: comp.id,
+            settings: &settings,
+        };
         send_chan
             .basic_publish(
                 "",
                 "gaia_input",
                 BasicPublishOptions::default(),
-                serde_json::to_vec(&settings).unwrap(),
+                serde_json::to_vec(&queue_message).unwrap(),
                 BasicProperties::default(),
             )
             .await
@@ -86,7 +99,7 @@ async fn create_computation(
                 BasicPublishOptions::default(),
                 serde_json::to_vec(&serde_json::json!({
                     "email": settings.email,
-                    "id": settings.data_id,
+                    "id": queue_message.data_id,
                 }))
                 .unwrap(),
                 BasicProperties::default(),
