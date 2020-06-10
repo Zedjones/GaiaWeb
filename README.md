@@ -1,6 +1,6 @@
 Gaia Web [![Build Status](https://travis-ci.com/Zedjones/GaiaWeb.svg?branch=master)](https://travis-ci.com/Zedjones/GaiaWeb)
 ==========
-A web server and web worker implementation for [Gaia](https://github.com/lauramv1832/Gaia). Gaia Web utilizes RabbitMQ for job queuing, Python for the actual calculations, Rust for the web server (Warp), and React + Material UI for the frontend.
+A web server and web worker implementation for [Gaia](https://github.com/lauramv1832/Gaia). Gaia Web utilizes RabbitMQ for job queuing, Python for the actual calculations, Rust for the web server (Actix), and React + Material UI for the frontend.
 
 ## Table of Contents
 <!-- vim-markdown-toc GFM --> 
