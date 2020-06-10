@@ -1,19 +1,19 @@
-use bytes::buf::Buf;
+use actix_files as fs;
+use actix_multipart::Multipart;
+use actix_web::{get, post, put, web, Error, HttpRequest, HttpResponse, Responder, Result};
+use actix_web_actors::ws;
+use async_graphql::http::{playground_source, GraphQLPlaygroundConfig};
+use async_graphql::InputObject;
+use async_graphql_actix_web::{GQLRequest, GQLResponse, WSSubscription};
 use diesel::prelude::*;
-use futures::{Future, FutureExt, StreamExt, TryStreamExt};
-use juniper::GraphQLInputObject;
-use juniper_subscriptions::Coordinator;
-use juniper_warp::subscriptions::graphql_subscriptions;
+use futures::{StreamExt, TryStreamExt};
 use lapin::{options::*, BasicProperties, Channel};
 use log::info;
 use serde::{Deserialize, Serialize};
-use std::pin::Pin;
-use std::sync::Arc;
-use warp::filters::multipart::FormData;
-use warp::{Filter, Rejection, Reply};
+use web::{Bytes, Data, Query};
 
 use super::DbPool;
-use crate::graphql::schema::{schema, Context};
+use crate::graphql::schema::Schema;
 
 fn default_db_scan() -> bool {
     false
@@ -27,18 +27,19 @@ fn default_cluster_size() -> i32 {
     200
 }
 
-#[derive(Serialize, Deserialize, Debug, GraphQLInputObject)]
+#[InputObject]
+#[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct PutSettings {
     pub email: String,
     pub title: String,
     #[serde(default = "default_db_scan")]
-    #[graphql(default = "false")]
+    #[field(default = false)]
     pub db_scan: bool,
     #[serde(default = "default_epsilon")]
-    #[graphql(default = "5")]
+    #[field(default = 5)]
     pub epsilon: i32,
     #[serde(default = "default_cluster_size")]
-    #[graphql(default = "200")]
+    #[field(default = 200)]
     pub cluster_size: i32,
 }
 
@@ -55,21 +56,21 @@ struct UserComputation {
     clusters: Vec<i32>,
 }
 
+#[put("/computation")]
 async fn create_computation(
-    mut payload: FormData,
-    settings: PutSettings,
-    send_chan: Channel,
-    db_pool: DbPool,
-) -> Result<impl Reply, Rejection> {
+    mut payload: Multipart,
+    settings: Query<PutSettings>,
+    send_chan: Data<Channel>,
+    db_pool: Data<DbPool>,
+) -> Result<HttpResponse, Error> {
     use super::models::NewComputation;
-    // iterate over multipart stream
-    while let Ok(Some(part)) = payload.try_next().await {
-        let mut csv_file: Vec<u8> = Vec::new();
-        let mut field = part.stream();
+    while let Ok(Some(mut field)) = payload.try_next().await {
+        let mut my_vec: Vec<Bytes> = Vec::new();
         while let Some(chunk) = field.next().await {
             let data = chunk.unwrap();
-            csv_file.append(&mut data.bytes().to_vec());
+            my_vec.push(data);
         }
+        let csv_file = my_vec.concat();
         log::info!("Length of file: {}", csv_file.len());
         let new_comp = NewComputation {
             email: settings.email.clone(),
@@ -107,102 +108,49 @@ async fn create_computation(
             .await
             .unwrap();
     }
-    Ok(warp::reply())
+    Ok(HttpResponse::Ok().into())
 }
 
-async fn get_computations(user_email: String, db_pool: DbPool) -> Result<impl Reply, Rejection> {
+#[get("/computation/{email}")]
+async fn get_computations(user_email: web::Path<String>, db_pool: Data<DbPool>) -> impl Responder {
     use super::schema::computations::dsl::*;
 
     let db = db_pool.get().unwrap();
 
     let user_computations = computations
-        .filter(email.eq(&user_email))
+        .filter(email.eq(&user_email.to_string()))
         .load::<super::models::Computation>(&db)
         .expect(&format!(
             "Error loading computations for user {}",
-            user_email
+            &user_email
         ));
 
-    Ok(warp::reply::json(&user_computations))
+    HttpResponse::Ok().json(user_computations)
 }
 
-fn with_pool(
-    pool: DbPool,
-) -> impl Filter<Extract = (DbPool,), Error = std::convert::Infallible> + Clone {
-    warp::any().map(move || pool.clone())
+pub(crate) async fn graphql_ws(
+    schema: web::Data<Schema>,
+    req: HttpRequest,
+    payload: web::Payload,
+) -> Result<HttpResponse> {
+    ws::start_with_protocols(WSSubscription::new(&schema), &["graphql-ws"], &req, payload)
 }
 
-fn with_channel(
-    chan: Channel,
-) -> impl Filter<Extract = (Channel,), Error = std::convert::Infallible> + Clone {
-    warp::any().map(move || chan.clone())
+#[post("/graphql")]
+async fn graphql(schema: web::Data<Schema>, req: GQLRequest) -> GQLResponse {
+    req.into_inner().execute(&schema).await.into()
 }
 
-fn with_context(
-    pool: DbPool,
-    chan: Channel,
-) -> impl Filter<Extract = (Context,), Error = std::convert::Infallible> + Clone {
-    warp::any().map(move || Context {
-        pool: pool.clone(),
-        channel: chan.clone(),
-    })
+#[get("/graphql")]
+async fn graphql_playground() -> Result<HttpResponse> {
+    Ok(HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(playground_source(
+            GraphQLPlaygroundConfig::new("/graphql").subscription_endpoint("/subscriptions"),
+        )))
 }
 
-pub fn get_routes(
-    pool: DbPool,
-    send_chan: Channel,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    let react_files = warp::get().and(warp::fs::dir("frontend/build/"));
-
-    let put_computation = warp::path("computation")
-        .and(warp::put())
-        // Set max size to 1 GB
-        .and(warp::multipart::form().max_length(1_000_000_000))
-        .and(warp::query::query::<PutSettings>())
-        .and(with_channel(send_chan.clone()))
-        .and(with_pool(pool.clone()))
-        .and_then(create_computation);
-
-    let get_user_computations = warp::path!("computation" / String)
-        .and(warp::get())
-        .and(with_pool(pool.clone()))
-        .and_then(get_computations);
-
-    let graphql_filter = juniper_warp::make_graphql_filter(
-        schema(),
-        with_context(pool.clone(), send_chan.clone()).boxed(),
-    );
-    let graphql = warp::path("graphql").and(graphql_filter);
-    let graphiql = warp::path("graphiql").and(juniper_warp::graphiql_filter("/graphql", None));
-    let graphql_get = warp::get().and(graphql.clone().or(graphiql.clone()));
-    let graphql_post = warp::post().and(graphql.or(graphiql));
-
-    let coordinator = Arc::new(juniper_subscriptions::Coordinator::new(schema()));
-
-    let subscriptions = warp::path("subscriptions")
-        .and(warp::ws())
-        .and(with_context(pool.clone(), send_chan.clone()))
-        .and(warp::any().map(move || Arc::clone(&coordinator)))
-        .map(
-            |ws: warp::ws::Ws,
-             ctx: Context,
-             coordinator: Arc<Coordinator<'static, _, _, _, _, _>>| {
-                ws.on_upgrade(|websocket| -> Pin<Box<dyn Future<Output = ()> + Send>> {
-                    graphql_subscriptions(websocket, coordinator, ctx)
-                        .map(|r| {
-                            if let Err(e) = r {
-                                log::error!("Websocket error: {}", e);
-                            }
-                        })
-                        .boxed()
-                })
-            },
-        )
-        .map(|reply| warp::reply::with_header(reply, "Sec-WebSocket-Protocol", "graphql-ws"));
-
-    let log = warp::log("gaia_web");
-    subscriptions
-        .or(graphql_get
-            .or(graphql_post.or(get_user_computations.or(put_computation.or(react_files)))))
-        .with(log)
+#[get("/")]
+async fn index() -> impl Responder {
+    fs::NamedFile::open("./frontend/build/index.html")
 }

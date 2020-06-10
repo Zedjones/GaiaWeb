@@ -7,7 +7,6 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-warp = "0.2.3"
 base64 = "0.12.1"
 serde = "1.0.111"
 serde_json = "1.0.53"
@@ -18,7 +17,11 @@ lapin = "1.0.0"
 futures = "0.3.5"
 diesel = { version = "1.4.4", features = ["sqlite", "r2d2"] }
 diesel_migrations = "1.4.0"
+actix-web = "2.0.0"
+actix-multipart = "0.2.0"
+actix-files = "0.2.2"
+actix-rt = "1.1.1"
+actix-web-actors = "2.0.0"
 bytes = "0.5.4"
-juniper = { git="https://github.com/graphql-rust/juniper" }
-juniper_warp = { git="https://github.com/graphql-rust/juniper", features = ["subscriptions"] }
-juniper_subscriptions = { git="https://github.com/graphql-rust/juniper" }
+async-graphql = "1.15.2"
+async-graphql-actix-web = "1.14.14"

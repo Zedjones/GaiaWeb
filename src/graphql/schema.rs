@@ -1,37 +1,34 @@
 use crate::models::Computation;
 use crate::routes::{PutSettings, QueueMessage};
 use crate::DbPool;
+use async_graphql::{Context, FieldError};
 use diesel::prelude::*;
-use futures::Stream;
-use juniper::{FieldError, RootNode};
-use lapin::{options::*, types::FieldTable, BasicProperties};
+use futures::{Stream, StreamExt};
+use lapin::{options::*, types::FieldTable, BasicProperties, Channel};
 use log::info;
 use serde::Deserialize;
-use std::pin::Pin;
 
-type Schema = RootNode<'static, Query, Mutation, Subscription>;
+pub(crate) type Schema = async_graphql::Schema<Query, Mutation, Subscription>;
 
-pub(crate) fn schema() -> Schema {
-    Schema::new(Query, Mutation, Subscription)
+pub(crate) fn schema(send_chan: Channel, pool: DbPool) -> Schema {
+    async_graphql::Schema::build(Query, Mutation, Subscription)
+        .data(send_chan)
+        .data(pool)
+        .finish()
 }
-
-#[derive(Clone)]
-pub(crate) struct Context {
-    pub pool: DbPool,
-    pub channel: lapin::Channel,
-}
-
-impl juniper::Context for Context {}
 
 pub(crate) struct Query;
 
-#[juniper::graphql_object(Context = Context)]
+#[async_graphql::Object]
 impl Query {
-    #[graphql(arguments(user_email(name = "email")))]
-    fn get_computations(context: &Context, user_email: String) -> Vec<Computation> {
+    async fn get_computations(
+        &self,
+        context: &Context<'_>,
+        #[arg(name = "email")] user_email: String,
+    ) -> Vec<Computation> {
         use crate::schema::computations::dsl::*;
 
-        let db = context.pool.get().unwrap();
+        let db = context.data::<DbPool>().get().unwrap();
 
         computations
             .filter(email.eq(&user_email))
@@ -45,56 +42,55 @@ impl Query {
 
 pub(crate) struct Mutation;
 
-#[juniper::graphql_object(Context = Context)]
+#[async_graphql::Object]
 impl Mutation {
-    fn add_computation(context: &Context, settings: PutSettings, csv_file: String) -> Computation {
+    async fn add_computation(
+        &self,
+        context: &Context<'_>,
+        settings: PutSettings,
+        csv_file: String,
+    ) -> Computation {
         use crate::models::NewComputation;
         let new_comp = NewComputation {
             email: settings.email.clone(),
             title: settings.title.clone(),
             csv_file: base64::decode(csv_file).unwrap(),
         };
-        let comp = new_comp.insert_computation(&context.pool);
+        let comp = new_comp.insert_computation(context.data::<DbPool>());
         info!("Created computation with id: {}", comp.id);
         let queue_message = QueueMessage {
             data_id: comp.id,
             settings: &settings,
         };
-        futures::executor::block_on(async {
-            context
-                .channel
-                .basic_publish(
-                    "",
-                    "gaia_input",
-                    BasicPublishOptions::default(),
-                    serde_json::to_vec(&queue_message).unwrap(),
-                    BasicProperties::default(),
-                )
-                .await
-                .unwrap()
-        });
-        futures::executor::block_on(async {
-            context
-                .channel
-                .basic_publish(
-                    "computation_updates",
-                    "",
-                    BasicPublishOptions::default(),
-                    serde_json::to_vec(&serde_json::json!({
-                        "email": settings.email,
-                        "id": queue_message.data_id,
-                    }))
-                    .unwrap(),
-                    BasicProperties::default(),
-                )
-                .await
-                .unwrap();
-        });
+        context
+            .data::<Channel>()
+            .basic_publish(
+                "",
+                "gaia_input",
+                BasicPublishOptions::default(),
+                serde_json::to_vec(&queue_message).unwrap(),
+                BasicProperties::default(),
+            )
+            .await
+            .unwrap();
+        context
+            .data::<Channel>()
+            .basic_publish(
+                "computation_updates",
+                "",
+                BasicPublishOptions::default(),
+                serde_json::to_vec(&serde_json::json!({
+                    "email": settings.email,
+                    "id": queue_message.data_id,
+                }))
+                .unwrap(),
+                BasicProperties::default(),
+            )
+            .await
+            .unwrap();
         comp
     }
 }
-
-type ComputationStream = Pin<Box<dyn Stream<Item = Result<Computation, FieldError>> + Send>>;
 
 #[derive(Deserialize)]
 struct UpdateInfo {
@@ -104,19 +100,22 @@ struct UpdateInfo {
 
 pub(crate) struct Subscription;
 
-#[juniper::graphql_subscription(Context = Context)]
+#[async_graphql::Subscription]
 impl Subscription {
-    #[graphql(arguments(user_email(name = "email")))]
-    async fn computations(ctx: &Context, user_email: String) -> ComputationStream {
+    async fn computations(
+        &self,
+        ctx: &Context<'_>,
+        #[arg(name = "email")] user_email: String,
+    ) -> impl Stream<Item = Result<Computation, FieldError>> {
         use crate::schema::computations::dsl::*;
         // Create new queue to listen for updates
         let update_queue = ctx
-            .channel
+            .data::<Channel>()
             .queue_declare("", QueueDeclareOptions::default(), FieldTable::default())
             .await
             .unwrap();
         // Bind the queue to the computation_updates exchange
-        ctx.channel
+        ctx.data::<Channel>()
             .queue_bind(
                 &update_queue.name().to_string(),
                 "computation_updates",
@@ -127,7 +126,7 @@ impl Subscription {
             .await
             .unwrap();
         let consumer = ctx
-            .channel
+            .data::<Channel>()
             .basic_consume(
                 &update_queue.name().to_string(),
                 "",
@@ -136,7 +135,7 @@ impl Subscription {
             )
             .await
             .unwrap();
-        let pool_clone = ctx.pool.clone();
+        let pool_clone = ctx.data::<DbPool>().clone();
         let update_stream = consumer
             .filter_map(|result| async move {
                 match result {
@@ -160,6 +159,6 @@ impl Subscription {
                     .expect(&format!("Error loading computation w/ id {}", update.id)))
             });
 
-        Box::pin(update_stream)
+        update_stream
     }
 }

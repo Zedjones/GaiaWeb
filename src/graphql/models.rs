@@ -10,53 +10,53 @@ impl Computation {
     }
 }
 
-#[juniper::graphql_object]
+#[async_graphql::Object]
 impl Computation {
-    fn id(&self) -> i32 {
+    async fn id(&self) -> i32 {
         self.id
     }
 
-    fn email(&self) -> &str {
+    async fn email(&self) -> &str {
         &self.email
     }
 
-    fn title(&self) -> &str {
+    async fn title(&self) -> &str {
         &self.title
     }
 
-    fn hr_png(&self) -> Option<String> {
+    async fn hr_png(&self) -> Option<String> {
         Computation::bytes_to_str(&self.hr_png)
     }
 
-    fn trimmed_png(&self) -> Option<String> {
+    async fn trimmed_png(&self) -> Option<String> {
         Computation::bytes_to_str(&self.trimmed_png)
     }
 
-    fn distance_png(&self) -> Option<String> {
+    async fn distance_png(&self) -> Option<String> {
         Computation::bytes_to_str(&self.distance_png)
     }
 
-    fn pm_png(&self) -> Option<String> {
+    async fn pm_png(&self) -> Option<String> {
         Computation::bytes_to_str(&self.pm_png)
     }
 
-    fn correctly_clustered(&self) -> Option<i32> {
+    async fn correctly_clustered(&self) -> Option<i32> {
         self.correctly_clustered
     }
 
-    fn incorrectly_clustered(&self) -> Option<i32> {
+    async fn incorrectly_clustered(&self) -> Option<i32> {
         self.incorrectly_clustered
     }
 
-    fn accuracy(&self) -> Option<f64> {
+    async fn accuracy(&self) -> Option<f64> {
         self.accuracy.and_then(|val| Some(val as f64))
     }
 
-    fn anomaly(&self) -> Option<i32> {
+    async fn anomaly(&self) -> Option<i32> {
         self.anomaly
     }
 
-    fn clusters(&self) -> Option<Vec<i32>> {
+    async fn clusters(&self) -> Option<Vec<i32>> {
         self.clusters
             .as_ref()
             .and_then(|cluster_str| Some(serde_json::from_str::<Vec<i32>>(cluster_str).unwrap()))

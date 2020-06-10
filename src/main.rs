@@ -13,18 +13,24 @@ use lapin::{options::*, types::FieldTable, Connection, ConnectionProperties};
 use log::{error, info};
 use std::time::Duration;
 
+use actix_files as fs;
+use actix_web::{guard, middleware::Logger, web, App, HttpServer};
+
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager};
 
-use routes::get_routes;
+use graphql::schema::schema;
+use routes::{
+    create_computation, get_computations, graphql as graphl_handler, graphql_playground,
+    graphql_ws, index,
+};
 
 type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
-type WarpAddress = ([u8; 4], u16);
 
 #[cfg(debug_assertions)]
-const ADDR: &'static WarpAddress = &([127, 0, 0, 1], 8080);
+const ADDR: &'static str = "127.0.0.1:8080";
 #[cfg(not(debug_assertions))]
-const ADDR: &'static WarpAddress = &([0, 0, 0, 0], 8080);
+const ADDR: &'static str = "0.0.0.0:8080";
 
 const CONN_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -45,10 +51,10 @@ async fn connect_timeout() -> Option<Connection> {
     }
 }
 
-#[tokio::main]
+#[actix_rt::main]
 // Accept any error being thrown because who cares
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::from_env(Env::default().default_filter_or("gaia=info,warp=info")).init();
+async fn main() -> std::io::Result<()> {
+    env_logger::from_env(Env::default().default_filter_or("gaia=info,actix=info")).init();
 
     let rabbit_conn = match connect_timeout().await {
         Some(conn) => conn,
@@ -58,14 +64,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         }
     };
-    let send_chan = rabbit_conn.create_channel().await?;
+    let send_chan = rabbit_conn.create_channel().await.unwrap();
     let _queue = send_chan
         .queue_declare(
             "gaia_input",
             QueueDeclareOptions::default(),
             FieldTable::default(),
         )
-        .await?;
+        .await
+        .unwrap();
     let send_clone = send_chan.clone();
 
     send_chan
@@ -75,7 +82,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ExchangeDeclareOptions::default(),
             FieldTable::default(),
         )
-        .await?;
+        .await
+        .unwrap();
 
     let db_url = std::env::var("DATABASE_URL").unwrap_or("gaia.db".to_string());
     let manager = ConnectionManager::<SqliteConnection>::new(db_url);
@@ -86,7 +94,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     diesel_migrations::run_pending_migrations(&pool.get().unwrap()).unwrap();
 
-    let routes = get_routes(pool, send_clone);
-    warp::serve(routes).run(*ADDR).await;
-    Ok(())
+    HttpServer::new(move || {
+        App::new()
+            .service(graphl_handler)
+            .service(graphql_playground)
+            .service(
+                web::resource("/subscriptions")
+                    .guard(guard::Get())
+                    .guard(guard::Header("upgrade", "websocket"))
+                    .to(graphql_ws),
+            )
+            .service(create_computation)
+            .service(get_computations)
+            .service(index)
+            .service(fs::Files::new("/", "frontend/build/").show_files_listing())
+            .data(send_clone.clone())
+            .data(pool.clone())
+            .data(schema(send_clone.clone(), pool.clone()).clone())
+            .wrap(Logger::default())
+    })
+    .bind(ADDR)?
+    .run()
+    .await
 }
