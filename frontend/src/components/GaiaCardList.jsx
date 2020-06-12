@@ -20,6 +20,11 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
+function toFixed(num, fixed) {
+  var re = new RegExp('^-?\\d+(?:.\\d{0,' + (fixed || -1) + '})?');
+  return num.toString().match(re)[0];
+}
+
 export default function GaiaCardList(props) {
   const classes = useStyles();
   const {
@@ -39,7 +44,7 @@ export default function GaiaCardList(props) {
             <AdjustIcon />
           </Avatar>
         </ListItemAvatar>
-        <ListItemText primary="Accuracy" secondary={accuracy + "%" ?? 'N/A'} />
+        <ListItemText primary="Accuracy" secondary={accuracy ? toFixed(accuracy, 2) * 100 + '%' : 'N/A'} />
       </ListItem>
       <ListItem>
         <ListItemAvatar>

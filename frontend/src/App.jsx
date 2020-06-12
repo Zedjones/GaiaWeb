@@ -6,27 +6,29 @@ import './App.css';
 import { ApolloProvider } from '@apollo/react-hooks';
 import { client } from './index';
 
+
+export const loadingContent = () => {
+  return (
+    <Grid
+      container
+      spacing={0}
+      direction="column"
+      alignItems="center"
+      justify="center"
+      style={{ minHeight: '90vh' }}
+    >
+      <Grid item xs={3}>
+        <CircularProgress />
+      </Grid>
+    </Grid>
+  )
+};
+
+
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState('');
-
-  const loadingContent = () => {
-    return (
-      <Grid
-        container
-        spacing={0}
-        direction="column"
-        alignItems="center"
-        justify="center"
-        style={{ minHeight: '90vh' }}
-      >
-        <Grid item xs={3}>
-          <CircularProgress />
-        </Grid>
-      </Grid>
-    )
-  };
 
   return (
     <ApolloProvider client={client}>
