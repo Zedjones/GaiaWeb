@@ -23,11 +23,11 @@ const useStyles = makeStyles((theme) => ({
 export default function GaiaCardList(props) {
   const classes = useStyles();
   const {
-      accuracy,
-      correctlyClustered,
-      incorrectlyClustered,
-      anomaly,
-      clusters
+    accuracy,
+    correctlyClustered,
+    incorrectlyClustered,
+    anomaly,
+    clusters
   } = props;
 
 
@@ -39,7 +39,7 @@ export default function GaiaCardList(props) {
             <AdjustIcon />
           </Avatar>
         </ListItemAvatar>
-        <ListItemText primary="Accuracy" secondary={accuracy + "%"} />
+        <ListItemText primary="Accuracy" secondary={accuracy + "%" ?? 'N/A'} />
       </ListItem>
       <ListItem>
         <ListItemAvatar>
@@ -47,7 +47,7 @@ export default function GaiaCardList(props) {
             <DoneIcon />
           </Avatar>
         </ListItemAvatar>
-        <ListItemText primary="Correctly Clustered" secondary={correctlyClustered} />
+        <ListItemText primary="Correctly Clustered" secondary={correctlyClustered ?? 'N/A'} />
       </ListItem>
       <ListItem>
         <ListItemAvatar>
@@ -55,7 +55,7 @@ export default function GaiaCardList(props) {
             <ClearIcon />
           </Avatar>
         </ListItemAvatar>
-        <ListItemText primary="Incorrectly Clustered" secondary={incorrectlyClustered} />
+        <ListItemText primary="Incorrectly Clustered" secondary={incorrectlyClustered ?? 'N/A'} />
       </ListItem>
       <ListItem>
         <ListItemAvatar>
@@ -63,7 +63,7 @@ export default function GaiaCardList(props) {
             <HelpIcon />
           </Avatar>
         </ListItemAvatar>
-        <ListItemText primary="Anomalies" secondary={anomaly} />
+        <ListItemText primary="Anomalies" secondary={anomaly ?? 'N/A'} />
       </ListItem>
       <ListItem>
         <ListItemAvatar>
@@ -71,16 +71,16 @@ export default function GaiaCardList(props) {
             <ScatterPlotIcon />
           </Avatar>
         </ListItemAvatar>
-        <ListItemText primary="Cluster Sizes" secondary={clusters.join(", ")} />
+        <ListItemText primary="Cluster Sizes" secondary={clusters?.join(", ") ?? 'N/A'} />
       </ListItem>
     </List>
   );
 }
 
 GaiaCardList.propTypes = {
-    accuracy: PropTypes.number.isRequired,
-    correctlyClustered: PropTypes.number.isRequired,
-    incorrectlyClustered: PropTypes.number.isRequired,
-    anomaly: PropTypes.number.isRequired,
-    clusters: PropTypes.array.isRequired,
+  accuracy: PropTypes.number,
+  correctlyClustered: PropTypes.number,
+  incorrectlyClustered: PropTypes.number,
+  anomaly: PropTypes.number,
+  clusters: PropTypes.array,
 }

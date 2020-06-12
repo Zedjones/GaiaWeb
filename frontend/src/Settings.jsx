@@ -5,7 +5,7 @@ const prod = {
 };
 
 const dev = {
-  API_URL_BASE: "localhost:8000",
+  API_URL_BASE: "http://localhost:8080",
   GOOGLE_CLIENT_URL: "localhost:3000",
   GOOGLE_CLIENT_ID: "274234851238-vihli01kc93s0pg1v9biqj6njcft0t80.apps.googleusercontent.com"
 };

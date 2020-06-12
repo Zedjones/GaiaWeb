@@ -6,7 +6,7 @@ import * as serviceWorker from './serviceWorker';
 import ApolloClient from 'apollo-boost';
 import Settings from './Settings';
 
-const client = new ApolloClient({
+export const client = new ApolloClient({
   uri: `${Settings.API_URL_BASE}/graphql`,
 });
 

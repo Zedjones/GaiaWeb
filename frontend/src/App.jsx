@@ -1,11 +1,15 @@
-import React, {useState} from 'react';
+import React, { useState } from 'react';
 import Bar from "./components/AppBar";
 import { CircularProgress, Typography, Grid } from "@material-ui/core";
+import GaiaGrid from './components/GaiaGrid';
 import './App.css';
+import { ApolloProvider } from '@apollo/react-hooks';
+import { client } from './index';
 
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState('');
 
   const loadingContent = () => {
     return (
@@ -25,17 +29,23 @@ function App() {
   };
 
   return (
-    <>
-      <Bar loggedIn={loggedIn} setLoggedIn={setLoggedIn} setLoading={setLoading} loading={loading}/>
+    <ApolloProvider client={client}>
+      <Bar
+        loggedIn={loggedIn}
+        setLoggedIn={setLoggedIn}
+        setLoading={setLoading}
+        loading={loading}
+        email={email}
+        setEmail={setEmail}
+      />
       {
-        loading ? 
-        loadingContent()
-        :
-        <Typography>
-          {loggedIn ? "Oh we logged" : "Oop no log"}
-        </Typography>
+        loading ?
+          loadingContent()
+          : loggedIn
+            ? <GaiaGrid email={email} />
+            : <Typography> "Oop no log" </Typography>
       }
-    </>
+    </ApolloProvider>
   );
 }
 

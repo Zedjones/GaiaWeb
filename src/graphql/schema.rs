@@ -54,7 +54,7 @@ impl Mutation {
         let new_comp = NewComputation {
             email: settings.email.clone(),
             title: settings.title.clone(),
-            csv_file: base64::decode(csv_file).unwrap(),
+            csv_file: csv_file.into_bytes(),
         };
         let comp = new_comp.insert_computation(context.data::<DbPool>());
         info!("Created computation with id: {}", comp.id);

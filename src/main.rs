@@ -13,6 +13,7 @@ use lapin::{options::*, types::FieldTable, Connection, ConnectionProperties};
 use log::{error, info};
 use std::time::Duration;
 
+use actix_cors::Cors;
 use actix_files as fs;
 use actix_web::{guard, middleware::Logger, web, App, HttpServer};
 
@@ -96,6 +97,7 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
+            .wrap(Cors::new().finish())
             .service(graphl_handler)
             .service(graphql_playground)
             .service(
