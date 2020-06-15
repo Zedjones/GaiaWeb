@@ -1,12 +1,13 @@
 use crate::models::Computation;
 use crate::routes::{PutSettings, QueueMessage};
 use crate::DbPool;
-use async_graphql::{Context, FieldError};
+use async_graphql::{Context, FieldError, Upload};
 use diesel::prelude::*;
 use futures::{Stream, StreamExt};
 use lapin::{options::*, types::FieldTable, BasicProperties, Channel};
 use log::info;
 use serde::Deserialize;
+use std::io::Read;
 
 pub(crate) type Schema = async_graphql::Schema<Query, Mutation, Subscription>;
 
@@ -48,13 +49,15 @@ impl Mutation {
         &self,
         context: &Context<'_>,
         settings: PutSettings,
-        csv_file: String,
+        upload: Upload,
     ) -> Computation {
         use crate::models::NewComputation;
+        let mut csv_file: Vec<u8> = Vec::new();
+        upload.into_read().read_to_end(&mut csv_file).unwrap();
         let new_comp = NewComputation {
             email: settings.email.clone(),
             title: settings.title.clone(),
-            csv_file: csv_file.into_bytes(),
+            csv_file,
         };
         let comp = new_comp.insert_computation(context.data::<DbPool>());
         info!("Created computation with id: {}", comp.id);
