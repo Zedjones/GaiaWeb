@@ -13,3 +13,9 @@ services:
             RABBITMQ_ADDR: rabbitmq
         ports: 
             - 8080:8000
+    worker:
+        build:
+            context: ../worker
+            dockerfile:  ../worker/Dockerfile
+        environment:
+            RABBITMQ_ADDR: rabbitmq
