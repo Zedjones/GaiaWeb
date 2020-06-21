@@ -1,13 +1,22 @@
 import React, { useState } from 'react';
 import Bar from "./components/AppBar";
-import { CircularProgress, Typography, Grid } from "@material-ui/core";
+import { CircularProgress, Typography, Grid, Fab, makeStyles } from "@material-ui/core";
+import AddIcon from "@material-ui/icons/Add";
 import GaiaGrid from './components/GaiaGrid';
 import './App.css';
 import { ApolloProvider } from '@apollo/react-hooks';
 import { client } from './index';
 
+const useStyles = makeStyles((theme) => ({
+  fab: {
+    position: 'absolute',
+    bottom: theme.spacing(2),
+    right: theme.spacing(2),
+  },
+}));
 
-export const loadingContent = () => {
+
+export const LoadingContent = () => {
   return (
     <Grid
       container
@@ -29,6 +38,16 @@ function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState('');
+  const classes = useStyles();
+
+  const LoggedIn = () => (
+    <>
+      <GaiaGrid email={email} />
+      <Fab className={classes.fab}>
+        <AddIcon />
+      </Fab>
+    </>
+  );
 
   return (
     <ApolloProvider client={client}>
@@ -42,9 +61,9 @@ function App() {
       />
       {
         loading ?
-          loadingContent()
+          <LoadingContent />
           : loggedIn
-            ? <GaiaGrid email={email} />
+            ? <LoggedIn />
             : <Typography> "Oop no log" </Typography>
       }
     </ApolloProvider>

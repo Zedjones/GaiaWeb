@@ -75,7 +75,7 @@ export default function GaiaGrid(props) {
     })
   }, [loading, subscribeToMore, email])
 
-  const mainContainer = () => (
+  const MainContainer = () => (
     <Grid
       container
       style={{ padding: '2%' }}
@@ -92,9 +92,10 @@ export default function GaiaGrid(props) {
       ))}
     </Grid>
   )
+
   return (
     <Grid container>
-      {loading ? null : mainContainer()}
+      {loading ? null : <MainContainer />}
     </Grid>
   )
 }
